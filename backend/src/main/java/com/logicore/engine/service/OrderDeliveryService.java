@@ -25,6 +25,7 @@ import com.logicore.engine.model.OrderFull;
 import com.logicore.engine.model.OrderStatus;
 import com.logicore.engine.model.RouteTrace;
 import com.logicore.engine.model.SlaTier;
+import com.logicore.engine.websocket.SimulationEventPublisher;
 
 /**
  * Comprehensive Order-to-Delivery Simulation Engine
@@ -39,6 +40,7 @@ public class OrderDeliveryService {
     private final BellmanFordService bellmanFordService;
     private final LogisticsGraph graph;
     private final InventoryHashMap inventory;
+    private final SimulationEventPublisher eventPublisher;
     
     /**
      * Map of orders being processed with their current state
@@ -71,13 +73,15 @@ public class OrderDeliveryService {
                                 FloydWarshallService floydWarshallService,
                                 BellmanFordService bellmanFordService,
                                 LogisticsGraph graph,
-                                InventoryHashMap inventory) {
+                                InventoryHashMap inventory,
+                                SimulationEventPublisher eventPublisher) {
         this.dijkstraService = dijkstraService;
         this.aStarService = aStarService;
         this.floydWarshallService = floydWarshallService;
         this.bellmanFordService = bellmanFordService;
         this.graph = graph;
         this.inventory = inventory;
+        this.eventPublisher = eventPublisher;
     }
     
     /**

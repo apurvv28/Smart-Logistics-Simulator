@@ -1,7 +1,107 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Terminal, Cpu, Info, ChevronRight, Zap } from 'lucide-react';
+import { Terminal, Cpu, Info, ChevronRight, Zap, GitBranch } from 'lucide-react';
 
-export default function AlgorithmAuditPanel({ events = [] }) {
+export default function AlgorithmAuditPanel({ events = [], endToEndAudit = null }) {
+  // For end-to-end journey display
+  if (endToEndAudit) {
+    return (
+      <div className="glass p-6 rounded-3xl h-full flex flex-col gap-4 min-h-[500px] border-l-4 border-purple-500">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <GitBranch className="w-5 h-5 text-purple-400" />
+            <h3 className="text-lg font-bold text-slate-200">End-to-End Journey Audit</h3>
+          </div>
+          <div className="flex items-center gap-2 text-xs mono text-purple-500/80">
+            <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+            Dual-Phase Active
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-2 flex flex-col gap-3 space-y-4">
+          {/* Journey Phase Status */}
+          <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+            <div className="text-xs font-bold text-purple-300 mb-2">JOURNEY PHASE</div>
+            <div className="text-sm font-bold text-purple-200">{endToEndAudit.journeyPhase}</div>
+            <div className="text-xs text-slate-400 mt-2">{endToEndAudit.statusMessage}</div>
+          </div>
+
+          {/* Macro Phase Audit */}
+          {endToEndAudit.macroPhase && (
+            <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-800/50">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-bold text-blue-300">🌍 MACRO PHASE</span>
+                <span className="text-xs bg-blue-900/60 px-2 py-1 rounded text-blue-200">{endToEndAudit.macroPhase.type}</span>
+              </div>
+              
+              <div className="space-y-2 text-xs text-slate-300">
+                <div className="flex justify-between">
+                  <span className="text-blue-400">Algorithm:</span>
+                  <span className="font-bold text-blue-200">{endToEndAudit.macroPhase.algorithm}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-400">Distance Traveled:</span>
+                  <span className="font-bold text-blue-200">{endToEndAudit.macroPhase.distanceTraveled}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-400">Total Distance:</span>
+                  <span className="font-bold text-blue-200">{endToEndAudit.macroPhase.totalDistance}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-400">Execution Time:</span>
+                  <span className="font-bold text-blue-200">{endToEndAudit.macroPhase.executionTimeMs}ms</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-400">Nodes Explored:</span>
+                  <span className="font-bold text-blue-200">{endToEndAudit.macroPhase.nodesExplored}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Micro Phase Audit */}
+          {endToEndAudit.microPhase && (
+            <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-800/50">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-bold text-emerald-300">📍 MICRO PHASE</span>
+                <span className="text-xs bg-emerald-900/60 px-2 py-1 rounded text-emerald-200">{endToEndAudit.microPhase.type}</span>
+              </div>
+              
+              <div className="space-y-2 text-xs text-slate-300">
+                <div className="flex justify-between">
+                  <span className="text-emerald-400">Algorithm:</span>
+                  <span className="font-bold text-emerald-200">{endToEndAudit.microPhase.algorithm}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-emerald-400">Distance Traveled:</span>
+                  <span className="font-bold text-emerald-200">{endToEndAudit.microPhase.distanceTraveled}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-emerald-400">Total Distance:</span>
+                  <span className="font-bold text-emerald-200">{endToEndAudit.microPhase.totalDistance}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-emerald-400">Execution Time:</span>
+                  <span className="font-bold text-emerald-200">{endToEndAudit.microPhase.executionTimeMs}ms</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-emerald-400">Stops:</span>
+                  <span className="font-bold text-emerald-200">{endToEndAudit.microPhase.nodesExplored}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Overall Progress */}
+          <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+            <div className="text-xs font-bold text-purple-300 mb-2">OVERALL PROGRESS</div>
+            <div className="text-xl font-bold text-purple-200">{endToEndAudit.overallProgress}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Original event-based display for single-phase simulations
   return (
     <div className="glass p-6 rounded-3xl h-full flex flex-col gap-4 min-h-[500px] border-l-4 border-amber-500">
       <div className="flex items-center justify-between">

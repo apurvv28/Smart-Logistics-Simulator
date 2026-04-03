@@ -17,8 +17,10 @@ import com.logicore.engine.graph.LogisticsGraph;
 import com.logicore.engine.model.LogisticsEdge;
 import com.logicore.engine.model.LogisticsNode;
 import com.logicore.engine.model.OrderFull;
+import com.logicore.engine.model.OrderFull.OrderStatusHistory;
 import com.logicore.engine.model.SlaTier;
 import com.logicore.engine.service.OrderDeliveryService;
+import com.logicore.engine.websocket.SimulationEventPublisher;
 
 /**
  * API endpoints for complete order-to-delivery simulation
@@ -31,10 +33,14 @@ public class OrderDeliveryController {
     
     private final OrderDeliveryService orderDeliveryService;
     private final LogisticsGraph graph;
+    private final SimulationEventPublisher eventPublisher;
     
-    public OrderDeliveryController(OrderDeliveryService orderDeliveryService, LogisticsGraph graph) {
+    public OrderDeliveryController(OrderDeliveryService orderDeliveryService, 
+                                    LogisticsGraph graph,
+                                    SimulationEventPublisher eventPublisher) {
         this.orderDeliveryService = orderDeliveryService;
         this.graph = graph;
+        this.eventPublisher = eventPublisher;
     }
     
     /**
@@ -43,7 +49,7 @@ public class OrderDeliveryController {
      */
     @PostMapping("/create-from-link")
     public OrderFull createOrderFromProductLink(@RequestBody ProductOrderRequest request) {
-        return orderDeliveryService.createOrderFromProductLink(
+        OrderFull order = orderDeliveryService.createOrderFromProductLink(
             request.productUrl,
             request.productSku,
             request.productName,
@@ -56,6 +62,12 @@ public class OrderDeliveryController {
             request.deliveryAddress,
             request.slaTier
         );
+        
+        // Publish WebSocket event
+        eventPublisher.publishEvent("ORDER_CREATED", "N/A", 
+            request.productName, order.getOrderId(), "N/A");
+        
+        return order;
     }
     
     /**
@@ -64,7 +76,15 @@ public class OrderDeliveryController {
      */
     @PostMapping("/{orderId}/process-and-route")
     public OrderFull processOrderAndRoute(@PathVariable String orderId, @RequestBody OrderFull order) {
-        return orderDeliveryService.processOrderPickupAndRoute(order);
+        OrderFull processed = orderDeliveryService.processOrderPickupAndRoute(order);
+        
+        // Publish event with algorithm info
+        eventPublisher.publishEvent("ORDER_ROUTED", processed.getRouteAlgorithm(),
+            "Pickup: " + graph.getNode(order.getPickupNodeId()).getName(),
+            "Route: " + processed.getPlannedRoute(), 
+            processed.getAlgorithmExplanation());
+        
+        return processed;
     }
     
     /**
@@ -73,7 +93,15 @@ public class OrderDeliveryController {
      */
     @PostMapping("/{orderId}/simulate-delivery")
     public OrderFull simulateDelivery(@PathVariable String orderId, @RequestBody OrderFull order) {
-        return orderDeliveryService.simulateDelivery(order);
+        OrderFull delivered = orderDeliveryService.simulateDelivery(order);
+        
+        // Publish event
+        eventPublisher.publishEvent("ORDER_DELIVERED", "N/A",
+            "Delivery to: " + order.getDeliveryAddress(),
+            delivered.getActualDeliveryTime(), 
+            "Distance: " + String.format("%.2f km", delivered.getActualDistance()));
+        
+        return delivered;
     }
     
     /**
@@ -86,7 +114,15 @@ public class OrderDeliveryController {
         if (order == null) {
             throw new IllegalArgumentException("Order not found: " + orderId);
         }
-        return orderDeliveryService.initiateReturn(order, request.returnReason);
+        OrderFull returned = orderDeliveryService.initiateReturn(order, request.returnReason);
+        
+        // Publish event
+        eventPublisher.publishEvent("RETURN_INITIATED", "N/A",
+            "Return reason: " + request.returnReason,
+            returned.getReturnNodeId(),
+            "Return destination: " + graph.getNode(returned.getReturnNodeId()).getName());
+        
+        return returned;
     }
     
     /**
@@ -95,7 +131,16 @@ public class OrderDeliveryController {
      */
     @PostMapping("/{orderId}/process-return")
     public OrderFull processReturn(@PathVariable String orderId, @RequestBody OrderFull order) {
-        return orderDeliveryService.processReturn(order);
+        OrderFull returned = orderDeliveryService.processReturn(order);
+        
+        // Publish event
+        eventPublisher.publishEvent("RETURN_PROCESSED", "DIJKSTRA",
+            "Return from: " + graph.getNode(order.getDeliveryNodeId()).getName(),
+            "Return to: " + graph.getNode(returned.getReturnNodeId()).getName(),
+            "Return distance: " + String.format("%.2f km", 
+                returned.getReturnRoute().size()));
+        
+        return returned;
     }
     
     /**
@@ -130,7 +175,7 @@ public class OrderDeliveryController {
     }
     
     /**
-     * Get network graph (all nodes and edges)
+     * Get network graph (all nodes and edges) - FIXED ROUTE PATH
      * GET /api/v1/graph/network
      */
     @GetMapping("/graph/network")

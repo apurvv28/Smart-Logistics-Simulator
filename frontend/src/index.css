@@ -29,6 +29,17 @@ body {
     linear-gradient(160deg, #f5edd5 0%, #e8dcb9 40%, #d3c093 100%);
 }
 
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 .story-shell {
   background-image:
     linear-gradient(rgba(92, 56, 32, 0.05) 1px, transparent 1px),
@@ -129,6 +140,26 @@ body {
 
 .leaflet-container {
   font-family: 'Nunito', sans-serif;
+}
+
+/* Fix dropdown text color - ensure black text for all select/option elements */
+select,
+select option {
+  color: #000000 !important;
+  background-color: #ffffff;
+  font-weight: 500;
+}
+
+select option:checked {
+  background-color: #e8e8e8;
+  color: #000000 !important;
+}
+
+/* Ensure dropdown labels are dark */
+label,
+.journey-config-panel,
+.intra-city-panel {
+  color: #1a1a1a !important;
 }
 
 @media (max-width: 768px) {

@@ -1,37 +1,28 @@
-import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom';
-import { Compass, Flag, Map, ScrollText } from 'lucide-react';
+import { BrowserRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Compass, Home } from 'lucide-react';
 import { useCampaignState } from './hooks/useCampaignState';
-import StoryHomePage from './pages/StoryHomePage';
-import MissionControlPage from './pages/MissionControlPage';
-import MapAndChroniclePage from './pages/MapAndChroniclePage';
+import SimulationLandingPage from './pages/SimulationLandingPage';
+import InterCitySimulationPage from './pages/InterCitySimulationPage';
+import IntraCityDeliveryPage from './pages/IntraCityDeliveryPage';
+import EndToEndJourneyPage from './pages/EndToEndJourneyPage';
 
 function TopNav() {
-  const links = [
-    { to: '/', label: 'Story', icon: ScrollText },
-    { to: '/mission', label: 'Mission', icon: Flag },
-    { to: '/map', label: 'Map Quest', icon: Map }
-  ];
+  const location = useLocation();
+  const isLandingPage = location.pathname === '/';
 
   return (
     <nav className="story-nav">
       <div className="flex items-center gap-2 text-amber-950 font-black text-lg">
-        <Compass size={20} /> LogiCore Adventure
+        <Compass size={20} /> LogiCore Simulation Engine
       </div>
-      <div className="flex flex-wrap gap-2">
-        {links.map((link) => {
-          const Icon = link.icon;
-          return (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === '/'}
-              className={({ isActive }) => `story-chip ${isActive ? 'story-chip-active' : ''}`}
-            >
-              <span className="inline-flex items-center gap-1"><Icon size={14} /> {link.label}</span>
-            </NavLink>
-          );
-        })}
-      </div>
+      {!isLandingPage && (
+        <NavLink
+          to="/"
+          className="story-chip hover:story-chip-active flex items-center gap-1"
+        >
+          <Home size={14} /> Simulations
+        </NavLink>
+      )}
     </nav>
   );
 }
@@ -45,9 +36,10 @@ export default function App() {
         <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-7 space-y-5">
           <TopNav />
           <Routes>
-            <Route path="/" element={<StoryHomePage campaign={campaign} />} />
-            <Route path="/mission" element={<MissionControlPage campaign={campaign} />} />
-            <Route path="/map" element={<MapAndChroniclePage campaign={campaign} />} />
+            <Route path="/" element={<SimulationLandingPage />} />
+            <Route path="/inter-city-simulation" element={<InterCitySimulationPage campaign={campaign} />} />
+            <Route path="/intra-city-simulation" element={<IntraCityDeliveryPage campaign={campaign} />} />
+            <Route path="/end-to-end-simulation" element={<EndToEndJourneyPage campaign={campaign} />} />
           </Routes>
         </div>
       </div>
