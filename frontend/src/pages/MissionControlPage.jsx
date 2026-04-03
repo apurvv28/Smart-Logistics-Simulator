@@ -58,6 +58,186 @@ function Toast({ message, type, visible }) {
   );
 }
 
+const STAGE_COLORS = {
+  PLACED: '#e8f4fd',
+  WAREHOUSE_PICKED: '#e8f4fd',
+  DISPATCHED: '#e8f4fd',
+  IN_TRANSIT: '#e8f4fd',
+  DELIVERED: '#e8f4fd',
+  RETURN_INITIATED: '#fff3e0',
+  PICKED_UP: '#fff3e0',
+};
+
+function AlgorithmArenaPanel({ data }) {
+  const algorithms = data?.algorithms || [
+    { name: 'A*', distanceKm: 208.80, executionMs: 0, pathNodes: 2, searchNodes: 3 },
+    { name: 'Floyd-Warshall', distanceKm: 208.80, executionMs: 1, pathNodes: 2, searchNodes: 42 },
+    { name: 'Dijkstra', distanceKm: 208.80, executionMs: 0, pathNodes: 2, searchNodes: 5 },
+    { name: 'Bellman-Ford', distanceKm: 208.80, executionMs: 7, pathNodes: 2, searchNodes: 42 },
+  ];
+
+  const fastest = algorithms.reduce((a, b) =>
+    a.executionMs <= b.executionMs ? a : b
+  );
+
+  return (
+    <div style={{
+      background: '#fdf8f0',
+      borderRadius: '12px',
+      padding: '24px',
+      border: '1px solid #e0d5c0',
+    }}>
+      <h2 style={{
+        color: '#5a3e1b',
+        fontFamily: 'Georgia, serif',
+        fontSize: '22px',
+        marginBottom: '16px',
+        fontWeight: 'bold',
+        marginTop: '0',
+      }}>
+        Algorithm Arena
+      </h2>
+
+      <div style={{
+        border: '1.5px dashed #b8976a',
+        borderRadius: '8px',
+        padding: '10px 16px',
+        marginBottom: '16px',
+        color: '#5a3e1b',
+        fontSize: '15px',
+      }}>
+        <strong>Fastest:</strong> {fastest.name}
+      </div>
+
+      <p style={{
+        color: '#7a6a50',
+        fontSize: '13px',
+        marginBottom: '16px',
+        fontStyle: 'italic',
+      }}>
+        Path nodes are the final route stops. Search-space nodes are candidates each algorithm evaluated to prove optimality.
+      </p>
+
+      {algorithms.map((algo, idx) => (
+        <div key={idx} style={{
+          border: '1px solid #d4c5a9',
+          borderRadius: '8px',
+          padding: '14px 16px',
+          marginBottom: '12px',
+          background: algo.name === fastest.name ? '#fff8ee' : '#ffffff',
+        }}>
+          <div style={{
+            fontWeight: 'bold',
+            color: '#3d2b0e',
+            fontSize: '16px',
+            marginBottom: '6px',
+          }}>
+            {algo.name}
+          </div>
+          <div style={{ color: '#555', fontSize: '14px', lineHeight: '1.8' }}>
+            <div>Distance: {algo.distanceKm.toFixed(2)} km</div>
+            <div>Execution: {algo.executionMs} ms</div>
+            <div>Path Nodes: {algo.pathNodes}</div>
+            <div>Search-Space Nodes: {algo.searchNodes}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChronicleTimelinePanel({ events, orders }) {
+  return (
+    <div style={{
+      background: '#fdf8f0',
+      borderRadius: '12px',
+      padding: '24px',
+      border: '1px solid #e0d5c0',
+    }}>
+      <h2 style={{
+        color: '#5a3e1b',
+        fontFamily: 'Georgia, serif',
+        fontSize: '22px',
+        marginBottom: '16px',
+        fontWeight: 'bold',
+        marginTop: '0',
+      }}>
+        Chronicle Timeline
+      </h2>
+
+      <div style={{
+        maxHeight: '380px',
+        overflowY: 'auto',
+        paddingRight: '4px',
+      }}>
+        {events.map((event, idx) => (
+          <div key={idx} style={{
+            background: STAGE_COLORS[event.stage] || '#f5f5f5',
+            border: '1px solid #ddd',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            marginBottom: '10px',
+          }}>
+            <div style={{
+              fontWeight: 'bold',
+              color: '#1a1a1a',
+              fontSize: '14px',
+              letterSpacing: '0.5px',
+            }}>
+              {event.stage}
+            </div>
+            <div style={{
+              color: '#666',
+              fontSize: '12px',
+              margin: '3px 0',
+            }}>
+              {event.timestamp}
+            </div>
+            <div style={{
+              color: '#333',
+              fontSize: '13px',
+            }}>
+              {event.description}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {orders && orders.length > 0 && (
+        <div style={{ marginTop: '16px' }}>
+          <div style={{
+            fontWeight: '600',
+            color: '#5a3e1b',
+            marginBottom: '8px',
+            fontSize: '14px',
+          }}>
+            Switch Order
+          </div>
+          {orders.map((ord, idx) => (
+            <div key={idx} style={{
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              padding: '10px 14px',
+              marginBottom: '6px',
+              background: '#fff',
+              fontSize: '13px',
+              color: '#333',
+              cursor: 'pointer',
+            }}>
+              {ord.id} | <span style={{
+                color: ord.status === 'DELIVERED' ? '#2e7d32' : '#e65100',
+                fontWeight: '600',
+              }}>
+                {ord.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MissionControlPage() {
   const {
     orderState,
@@ -71,6 +251,29 @@ export default function MissionControlPage() {
   } = useCampaignState();
 
   const [toast, setToast] = useState({ message: '', type: 'success', visible: false });
+  const [timelineEvents, setTimelineEvents] = useState([]);
+  const [algorithmData, setAlgorithmData] = useState(null);
+  const [switchOrders, setSwitchOrders] = useState([]);
+
+  // Fetch other orders for Switch Order section
+  useEffect(() => {
+    fetch('http://localhost:8081/api/v1/orders?limit=5')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSwitchOrders(
+            data.slice(0, 3).map(o => ({ id: o.orderId || o.id, status: o.status || 'PENDING' }))
+          );
+        }
+      })
+      .catch(() => {
+        // Mock switch orders
+        setSwitchOrders([
+          { id: 'cfda725f-418e-43c5-bd98-a0e4da645ff8', status: 'RETURN_INITIATED' },
+          { id: '782a4141-a212-47d4-9d12-3fb23cf9e1e0', status: 'DELIVERED' },
+        ]);
+      });
+  }, []);
 
   // Show toast when statusMessage changes
   useEffect(() => {
@@ -82,50 +285,146 @@ export default function MissionControlPage() {
     }
   }, [statusMessage]);
 
+  // Wrapped handlers that build timeline progressively
+  const wrappedHandleCreateOrder = async () => {
+    await actions.handleCreateOrder();
+    // Initialize timeline with PLACED event
+    setTimelineEvents([{
+      stage: 'PLACED',
+      timestamp: new Date().toLocaleString('en-IN'),
+      description: `Order created from ${orderState.productUrl?.substring(0, 40) || 'manual entry'}...`
+    }]);
+    // Initialize Algorithm Arena with default mock data
+    setAlgorithmData({
+      algorithms: [
+        { name: 'A*', distanceKm: 208.80, executionMs: 0, pathNodes: 2, searchNodes: 3 },
+        { name: 'Floyd-Warshall', distanceKm: 208.80, executionMs: 1, pathNodes: 2, searchNodes: 42 },
+        { name: 'Dijkstra', distanceKm: 208.80, executionMs: 0, pathNodes: 2, searchNodes: 5 },
+        { name: 'Bellman-Ford', distanceKm: 208.80, executionMs: 7, pathNodes: 2, searchNodes: 42 },
+      ]
+    });
+  };
+
+  const wrappedHandleProcessRoute = async () => {
+    await actions.handleProcessRoute();
+    // Add warehouse picked and dispatched events
+    setTimelineEvents(prev => [...prev,
+      {
+        stage: 'WAREHOUSE_PICKED',
+        timestamp: new Date().toLocaleString('en-IN'),
+        description: `Order picked from warehouse: ${orderState.routeData?.source || 'Delhi Warehouse'}`
+      },
+      {
+        stage: 'DISPATCHED',
+        timestamp: new Date().toLocaleString('en-IN'),
+        description: `Route calculated using ${orderState.routeData?.routeAlgorithm || 'A_STAR'}. Distance: ${orderState.routeData?.distanceKm || 1412} km`
+      }
+    ]);
+  };
+
+  const wrappedHandleCompareAlgorithms = async () => {
+    await actions.handleCompareAlgorithms();
+    // Update algorithm data with real backend response
+    if (orderState.comparisonData?.algorithms) {
+      setAlgorithmData({
+        algorithms: orderState.comparisonData.algorithms.map(algo => ({
+          name: algo.name || algo.algorithm || 'Unknown',
+          distanceKm: algo.distance || algo.distanceKm || 208.8,
+          executionMs: algo.time || algo.executionMs || 0,
+          pathNodes: algo.pathNodes || 2,
+          searchNodes: algo.searchNodes || 42
+        }))
+      });
+    }
+  };
+
+  const wrappedHandleSimulateDelivery = async () => {
+    await actions.handleSimulateDelivery();
+    // Add in-transit and delivered events
+    setTimelineEvents(prev => [...prev,
+      {
+        stage: 'IN_TRANSIT',
+        timestamp: new Date().toLocaleString('en-IN'),
+        description: `In transit from ${orderState.routeData?.source || 'Delhi'} to ${orderState.deliveryAddress}. Distance: ${orderState.routeData?.distanceKm || 1412} km`
+      },
+      {
+        stage: 'DELIVERED',
+        timestamp: new Date().toLocaleString('en-IN'),
+        description: `Package delivered to ${orderState.deliveryAddress}`
+      }
+    ]);
+  };
+
+  const wrappedHandleInitiateReturn = async () => {
+    await actions.handleInitiateReturn();
+    // Add return initiated event
+    setTimelineEvents(prev => [...prev,
+      {
+        stage: 'RETURN_INITIATED',
+        timestamp: new Date().toLocaleString('en-IN'),
+        description: `Return initiated. Reason: ${orderState.returnReason}`
+      }
+    ]);
+  };
+
+  const wrappedHandlePickupReturn = async () => {
+    await actions.handlePickupReturn();
+    // Add pickup event
+    setTimelineEvents(prev => [...prev,
+      {
+        stage: 'PICKED_UP',
+        timestamp: new Date().toLocaleString('en-IN'),
+        description: `Package picked up from ${orderState.deliveryAddress}. Returning to seller warehouse.`
+      }
+    ]);
+  };
+
   // Button configuration with unlock rules
   const buttonConfig = useMemo(() => [
     {
       id: 1,
       label: loading && orderState.currentStage === 0 ? '⏳ Creating...' : '1) Create Order',
       enabled: true, // Always enabled when form is valid
-      action: actions.handleCreateOrder,
+      action: wrappedHandleCreateOrder,
     },
     {
       id: 2,
       label: loading && orderState.currentStage === 1 ? '⏳ Processing...' : '2) Process & Route',
       enabled: orderState.orderCreated && !loading,
-      action: actions.handleProcessRoute,
+      action: wrappedHandleProcessRoute,
     },
     {
       id: 3,
       label: loading && orderState.currentStage === 2 ? '⏳ Comparing...' : '3) Compare Algorithms',
       enabled: orderState.routeProcessed && !loading,
-      action: actions.handleCompareAlgorithms,
+      action: wrappedHandleCompareAlgorithms,
     },
     {
       id: 4,
       label: loading && orderState.currentStage === 3 ? '⏳ Simulating...' : '4) Simulate Delivery',
       enabled: orderState.algorithmsCompared && !loading,
-      action: actions.handleSimulateDelivery,
+      action: wrappedHandleSimulateDelivery,
     },
     {
       id: 5,
       label: loading && orderState.currentStage === 4 ? '⏳ Initiating...' : '5) Initiate Return',
       enabled: orderState.deliverySimulated && !loading,
-      action: actions.handleInitiateReturn,
+      action: wrappedHandleInitiateReturn,
     },
     {
       id: 6,
       label: loading && orderState.currentStage === 5 ? '⏳ Processing...' : '6) Pickup & Return',
       enabled: orderState.returnInitiated && !loading,
-      action: actions.handlePickupReturn,
+      action: wrappedHandlePickupReturn,
     },
-  ], [orderState, loading, actions]);
+  ], [orderState, loading, wrappedHandleCreateOrder, wrappedHandleProcessRoute, wrappedHandleCompareAlgorithms, wrappedHandleSimulateDelivery, wrappedHandleInitiateReturn, wrappedHandlePickupReturn]);
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-      {/* Left Panel: Form & Buttons */}
-      <section className="story-card p-5 xl:col-span-2 space-y-4">
+    <>
+      {/* TOP SECTION: Form + Buttons + Mission Log */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        {/* Left Panel: Form & Buttons */}
+        <section className="story-card p-5 xl:col-span-2 space-y-4">
         <h2 className="text-2xl font-black text-amber-900">Mission Intake</h2>
         <p className="text-sm text-amber-900/70">Create an order and command each mission stage.</p>
 
@@ -219,59 +518,8 @@ export default function MissionControlPage() {
           ))}
         </div>
 
-        {/* Stage Result Display Panel */}
-        {stageResults.title && (
-          <div style={{
-            marginTop: '20px',
-            padding: '16px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #e8f5e9, #f1f8ff)',
-            border: '2px solid #1a6b8a',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ 
-              color: '#1a6b8a', 
-              marginBottom: '12px',
-              marginTop: '0',
-              fontSize: '16px',
-              fontWeight: '700'
-            }}>
-              📋 {stageResults.title}
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {Object.entries(stageResults.data || {}).map(([key, val]) => (
-                <div key={key} style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '8px 0',
-                  borderBottom: '1px solid #d0e8f2',
-                  color: '#000'
-                }}>
-                  <span style={{ fontWeight: '600', color: '#444', flex: '0 0 40%' }}>{key}:</span>
-                  <span style={{ color: '#1a1a1a', flex: '1', textAlign: 'right', wordBreak: 'break-word' }}>
-                    {String(val)}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {stageResults.timestamp && (
-              <div style={{ 
-                marginTop: '10px', 
-                paddingTop: '10px', 
-                borderTop: '1px solid #d0e8f2',
-                fontSize: '12px',
-                color: '#1a6b8a'
-              }}>
-                ⏰ {stageResults.timestamp}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
 
-      {/* Toast Notification */}
-      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
+      </section>
 
       {/* Right Panel: Mission Log & Results */}
       <section className="story-card p-5 space-y-4">
@@ -327,5 +575,30 @@ export default function MissionControlPage() {
         )}
       </section>
     </div>
+
+    {/* BOTTOM SECTION: Two-Column Layout (Algorithm Arena + Chronicle Timeline) */}
+    {orderState.orderCreated && (
+      <div className="mt-8">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '24px',
+          fontFamily: 'Georgia, serif',
+        }}>
+          {/* LEFT: Algorithm Arena */}
+          <AlgorithmArenaPanel data={algorithmData} />
+
+          {/* RIGHT: Chronicle Timeline */}
+          <ChronicleTimelinePanel 
+            events={timelineEvents}
+            orders={switchOrders}
+          />
+        </div>
+      </div>
+    )}
+
+    {/* Toast Notification */}
+    <Toast message={toast.message} type={toast.type} visible={toast.visible} />
+    </>
   );
 }
