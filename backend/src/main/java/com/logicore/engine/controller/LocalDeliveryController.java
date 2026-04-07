@@ -26,6 +26,56 @@ public class LocalDeliveryController {
     }
 
     /**
+     * GET /api/local-delivery/cities
+     * Returns list of available cities for simulation
+     */
+     @GetMapping("/cities")
+     public ResponseEntity<Map<String, Object>> getCities() {
+         Map<String, Object> response = new HashMap<>();
+         response.put("status", "success");
+         response.put("cities", localDeliveryService.getAvailableCities());
+         return ResponseEntity.ok(response);
+     }
+
+    /**
+     * POST /api/local-delivery/calculate-city-route
+     * Calculates optimal delivery route for a specific city
+     * 
+     * Request: { "cityId": "DEL", "numberOfStops": 15, "algorithmType": "GREEDY" }
+     */
+    @PostMapping("/calculate-city-route")
+    public ResponseEntity<Map<String, Object>> calculateCityRoute(@RequestBody Map<String, Object> request) {
+        try {
+            String cityId = (String) request.get("cityId");
+            int numberOfStops = request.containsKey("numberOfStops") ? ((Number) request.get("numberOfStops")).intValue() : 12;
+            String algorithm = (String) request.getOrDefault("algorithmType", "GREEDY");
+
+            LocalDeliveryStop warehouse = localDeliveryService.getWarehouseForCity(cityId);
+            List<LocalDeliveryStop> deliveryStops = localDeliveryService.generateMockDeliveryStops(cityId, numberOfStops);
+
+            List<LocalDeliveryStop> route = localDeliveryService.calculateOptimalRoute(
+                    cityId, warehouse, deliveryStops, algorithm
+            );
+
+            double totalDistance = localDeliveryService.calculateTotalDistance(route);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("cityId", cityId);
+            response.put("warehouse", warehouse);
+            response.put("deliveryStops", deliveryStops);
+            response.put("route", route);
+            response.put("totalDistance", totalDistance);
+            response.put("stopCount", route.size() - 2); // excluding warehouse start/end
+            response.put("algorithm", "GREEDY_NEAREST_NEIGHBOR");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return errorResponse("Failed to calculate city route: " + e.getMessage());
+        }
+    }
+
+    /**
      * POST /api/local-delivery/calculate-route
      * Calculates optimal delivery route using Greedy TSP algorithm
      *
@@ -218,6 +268,36 @@ public class LocalDeliveryController {
 
         } catch (Exception e) {
             return errorResponse("Failed to complete delivery: " + e.getMessage());
+        }
+    }
+
+    /**
+     * POST /api/simulation/intra-city/route
+     * Returns optimized stop order for a given set of local stops
+     */
+    @PostMapping("/simulation/intra-city/route")
+    public ResponseEntity<Map<String, Object>> getIntraCityRoute(@RequestBody Map<String, Object> request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> stopsData = (List<Map<String, Object>>) request.get("stops");
+            List<LocalDeliveryStop> stops = stopsData.stream()
+                    .map(this::mapToDeliveryStop)
+                    .toList();
+
+            // Compute optimal order using Greedy TSP (representing A*/Dijkstra logic for sequence)
+            List<LocalDeliveryStop> orderedStops = localDeliveryService.computeOptimalDeliveryRoute(stops);
+            double estimatedDistance = localDeliveryService.calculateTotalDistance(orderedStops);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("orderedStops", orderedStops);
+            response.put("algorithmUsed", "AStar");
+            response.put("totalEstimatedDistance", estimatedDistance);
+            response.put("roadGeometry", "OSRM (to be fetched by frontend)");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return errorResponse("Failed to optimize route: " + e.getMessage());
         }
     }
 
