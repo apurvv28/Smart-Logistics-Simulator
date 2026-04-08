@@ -1,0 +1,63 @@
+
+> logicore-frontend@0.0.1 build
+> vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+node.exe : (node:13456) 
+ExperimentalWarning: 
+CommonJS module C:\Users
+\NISHA\Documents\ADSAA C
+P\Smart-Logistics-Simula
+tor\frontend\node_module
+s\tailwindcss\lib\lib\lo
+ad-config.js is loading 
+ES Module C:\Users\NISHA
+\Documents\ADSAA CP\Smar
+t-Logistics-Simulator\fr
+ontend\tailwind.config.j
+s using require().
+At C:\Program 
+Files\nodejs\npm.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~
+    + CategoryInfo      
+        : NotSpecified: 
+((no    de:13456) 
+Ex...sing re    
+quire().:String) [], R  
+  emoteException
+    + 
+FullyQualifiedErrorI    
+d : NativeCommandError
+ 
+Support for loading ES 
+Module in require() is 
+an experimental feature 
+and might change at any 
+time
+(Use `node 
+--trace-warnings ...` 
+to show where the 
+warning was created)
+[1m[33m[plugin:vite:re
+solve][39m[22m 
+[33m[plugin 
+vite:resolve] Module 
+"net" has been 
+externalized for 
+browser compatibility, 
+imported by "C:/Users/NI
+SHA/Documents/ADSAA CP/S
+mart-Logistics-Simulator
+/frontend/node_modules/s
+tompjs/lib/stomp-node.js
+". See https://vite.dev/
+guide/troubleshooting.ht
+ml#module-externalized-f
+or-browser-compatibility
+ for more details.[39m
+[32m???[39m 3198 modules transformed.

@@ -3,6 +3,7 @@ package com.logicore.engine.service;
 import com.logicore.engine.model.LocalDeliveryProgress;
 import com.logicore.engine.model.LocalDeliveryStop;
 import org.springframework.stereotype.Service;
+import com.logicore.engine.dto.LocalDeliveryResponse;
 
 import java.util.*;
 
@@ -325,5 +326,63 @@ public class LocalDeliveryService {
         }
 
         progress.setUpdatedAtMs(System.currentTimeMillis());
+    }
+
+    /**
+     * Calculate optimal city delivery route for intra-city simulator
+     * This method is specifically for the city-based delivery page
+     * 
+     * @param cityId The city identifier
+     * @param warehouse The warehouse/hub location
+     * @param deliveryAddresses List of 8-12 delivery stops in the city
+     * @param algorithmType The algorithm to use (DIJKSTRA, GREEDY, etc.)
+     * @return LocalDeliveryResponse with optimized route and metrics
+     */
+    public LocalDeliveryResponse calculateCityDeliveryRoute(
+            String cityId,
+            LocalDeliveryStop warehouse,
+            List<LocalDeliveryStop> deliveryAddresses,
+            String algorithmType) {
+        
+        try {
+            // Validate inputs
+            if (warehouse == null) {
+                throw new IllegalArgumentException("Warehouse location cannot be null");
+            }
+            if (deliveryAddresses == null || deliveryAddresses.isEmpty()) {
+                throw new IllegalArgumentException("No delivery addresses provided");
+            }
+
+            // Build complete list: warehouse + delivery addresses
+            List<LocalDeliveryStop> allStops = new ArrayList<>();
+            allStops.add(warehouse);
+            allStops.addAll(deliveryAddresses);
+
+            // Calculate optimal route using Greedy Nearest-Neighbor TSP
+            List<LocalDeliveryStop> optimizedRoute = greedyNearestNeighbor(allStops);
+
+            // Calculate total distance for the route
+            double totalDistance = calculateTotalDistance(optimizedRoute);
+
+            // Build response
+            LocalDeliveryResponse response = new LocalDeliveryResponse();
+            response.setStatus("success");
+            response.setRoute(optimizedRoute);
+            response.setTotalDistance(totalDistance);
+            response.setStopCount(optimizedRoute.size());
+            response.setAlgorithm(algorithmType != null ? algorithmType : "GREEDY");
+
+            return response;
+
+        } catch (Exception e) {
+            // Return error response
+            LocalDeliveryResponse response = new LocalDeliveryResponse();
+            response.setStatus("error");
+            response.setRoute(new ArrayList<>());
+            response.setTotalDistance(0);
+            response.setStopCount(0);
+            response.setAlgorithm("UNKNOWN");
+            return response;
+        }
     }
 }
