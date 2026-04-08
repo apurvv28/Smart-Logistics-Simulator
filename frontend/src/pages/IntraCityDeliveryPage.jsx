@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader, ChevronDown, MapPin } from 'lucide-react';
+import { ChevronDown, MapPin, Loader2 } from 'lucide-react';
 import IntraCityMapSimulator from '../components/IntraCityMapSimulator';
 import axios from 'axios';
 
@@ -20,9 +20,10 @@ export default function IntraCityDeliveryPage() {
       try {
         const response = await axios.get(`${API_BASE}/local-delivery/cities`);
         if (response.data.status === 'success') {
-          setCities(response.data.cities.sort((a, b) => a.cityName.localeCompare(b.cityName)));
-          // Pre-select Nagpur or first city
-          const initialCity = response.data.cities.find(c => c.cityId === 'NAG') || response.data.cities[0];
+          const sortedCities = response.data.cities.sort((a, b) => a.cityName.localeCompare(b.cityName));
+          setCities(sortedCities);
+          // Pre-select Nagpur (NAG) if available, else first city
+          const initialCity = sortedCities.find(c => c.cityId === 'NAG') || sortedCities[0];
           if (initialCity) {
             handleCitySelect(initialCity.cityId);
           }
@@ -42,7 +43,7 @@ export default function IntraCityDeliveryPage() {
       const response = await axios.post(`${API_BASE}/local-delivery/calculate-city-route`, {
         cityId: cityId,
         numberOfStops: 12,
-        algorithmType: 'GREEDY'
+        algorithmType: 'AStar' // Requesting A* as shown in the screenshot audit panel
       });
       if (response.data.status === 'success') {
         setSimulationData(response.data);
@@ -55,70 +56,63 @@ export default function IntraCityDeliveryPage() {
   };
 
   return (
-    <div className="w-full h-screen bg-slate-50 flex flex-col overflow-hidden">
-      {/* Premium Header */}
-      <div className="bg-gradient-to-r from-indigo-700 via-purple-700 to-indigo-800 p-4 shadow-lg z-30">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/')}
-              className="p-2.5 hover:bg-white/10 rounded-xl transition-all duration-300 text-white border border-white/20"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">National Intra-City Simulator</h1>
-              <p className="text-sm text-indigo-100 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" />
-                Regional Hub Network | Active Coverage
-              </p>
-            </div>
+    <div className="w-full h-[calc(100vh-140px)] flex flex-col overflow-hidden bg-white rounded-3xl shadow-sm border border-slate-200">
+      {/* City Selector Header (Integrated into content area) */}
+      <div className="bg-white px-8 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-50 rounded-lg">
+            <MapPin className="w-5 h-5 text-indigo-600" />
           </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Operation Hub</h3>
+            <p className="text-xs text-slate-400 font-medium tracking-tight">Select city for last-mile simulation</p>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative group">
-              <select
-                value={selectedCityId}
-                onChange={(e) => handleCitySelect(e.target.value)}
-                disabled={loading}
-                className="appearance-none bg-white/10 border border-white/30 text-white px-5 py-2.5 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer disabled:opacity-50 transition-all font-medium"
-              >
-                <option value="" disabled className="text-slate-900">Select Operating Hub</option>
-                {cities.map(city => (
-                  <option key={city.cityId} value={city.cityId} className="text-slate-900">
-                    {city.cityName} ({city.cityId})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white pointer-events-none group-hover:scale-110 transition-transform" />
-            </div>
-          </div>
+        <div className="relative group">
+          <select
+            value={selectedCityId}
+            onChange={(e) => handleCitySelect(e.target.value)}
+            disabled={loading}
+            className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 px-6 py-2.5 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer disabled:opacity-50 transition-all font-bold text-sm"
+          >
+            {cities.map(city => (
+              <option key={city.cityId} value={city.cityId}>
+                {city.cityName} ({city.cityId})
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:scale-110 transition-transform" />
         </div>
       </div>
 
-      <div className="flex-1 relative bg-slate-200">
+      <div className="flex-1 relative overflow-hidden bg-slate-100">
         {loading ? (
-          <div className="absolute inset-0 z-20 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center">
-            <div className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm transform animate-in fade-in zoom-in duration-300">
-              <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-slate-800">Optimizing Local Route</h3>
-              <p className="text-slate-500 mt-2">Computing TSP sequence for the selected city hubs...</p>
+          <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-md flex items-center justify-center">
+            <div className="text-center">
+              <div className="relative w-24 h-24 mx-auto mb-6">
+                <div className="absolute inset-0 border-4 border-indigo-100 rounded-full" />
+                <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin" />
+                <Loader2 className="absolute inset-0 m-auto w-8 h-8 text-indigo-600 animate-pulse" />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 tracking-tighter">Optimizing Logistics</h3>
+              <p className="text-sm text-slate-500 font-medium">Computing OSRM road geometry & stop sequence...</p>
             </div>
           </div>
         ) : error ? (
-          <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md border border-red-100">
-              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">⚠️</span>
-              </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">Network Error</h3>
-              <p className="text-slate-600 mb-6">{error}</p>
-              <button 
-                onClick={() => window.location.reload()}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-              >
-                Retry Connection
-              </button>
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md border border-red-50">
+               <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <span className="text-3xl">⚠️</span>
+               </div>
+               <h3 className="text-2xl font-black text-slate-800 mb-3 tracking-tighter">Connection Failed</h3>
+               <p className="text-slate-500 mb-8 font-medium leading-relaxed">{error}</p>
+               <button 
+                  onClick={() => window.location.reload()}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition shadow-xl shadow-indigo-100"
+               >
+                  Retry Connection
+               </button>
             </div>
           </div>
         ) : simulationData && (

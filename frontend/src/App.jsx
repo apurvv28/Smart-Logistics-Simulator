@@ -11,16 +11,19 @@ function TopNav() {
   const isLandingPage = location.pathname === '/';
 
   return (
-    <nav className="story-nav">
-      <div className="flex items-center gap-2 text-amber-950 font-black text-lg">
-        <Compass size={20} /> LogiCore Simulation Engine
+    <nav className="flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-md border border-slate-200 rounded-2xl shadow-sm mb-6">
+      <div className="flex items-center gap-3 text-slate-900 font-black text-xl tracking-tighter">
+        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+          <Compass size={20} />
+        </div>
+        LogiCore Simulation Engine
       </div>
       {!isLandingPage && (
         <NavLink
           to="/"
-          className="story-chip hover:story-chip-active flex items-center gap-1"
+          className="story-chip hover:story-chip-active flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 transition-all font-bold text-sm"
         >
-          <Home size={14} /> Simulations
+          <Home size={16} /> Simulations
         </NavLink>
       )}
     </nav>
@@ -33,7 +36,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="story-shell min-h-screen">
-        <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-7 space-y-5">
+        <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-8 md:py-8">
           <TopNav />
           <Routes>
             <Route path="/" element={<SimulationLandingPage />} />

@@ -1,41 +1,41 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
-import { Play, Pause, RotateCcw, Clock, CheckCircle2, Navigation, Package, Truck } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { Play, Pause, RotateCcw, Clock, CheckCircle2, Navigation, Package, Truck, Info, ChevronRight } from 'lucide-react';
 import L from 'leaflet';
 
-const STOP_DWELL_TIME = 5000; // 5 seconds as requested
+const STOP_DWELL_TIME = 5000; 
 
 // Component Icons
 function createStopMarker(isDelivered, isCurrent, index) {
-  const bgColor = isDelivered ? '#10b981' : (isCurrent ? '#f59e0b' : '#3b82f6');
+  const bgColor = isDelivered ? '#10b981' : (isCurrent ? '#f59e0b' : '#6366f1');
   return L.divIcon({
     className: '',
     html: `
       <div style="
-        width: 32px; height: 32px;
+        width: 28px; height: 28px;
         background: ${bgColor};
         border: 2px solid white;
         border-radius: 50% 50% 50% 0;
         transform: rotate(-45deg);
-        box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+        box-shadow: 0 3px 10px rgba(0,0,0,0.2);
         display: flex; align-items: center; justify-content: center;
         transition: all 0.5s ease;
       ">
-        <span style="transform: rotate(45deg); color: white; font-weight: bold; font-size: 11px;">
+        <span style="transform: rotate(45deg); color: white; font-weight: bold; font-size: 10px;">
           ${isDelivered ? '✓' : index}
         </span>
       </div>
     `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
   });
 }
 
-const createVanIcon = () => L.divIcon({
+const createVanIcon = (bearing = 0) => L.divIcon({
   className: '',
   html: `
-    <div style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.25)); transition: transform 0.3s ease;">
-      <svg width="48" height="28" viewBox="0 0 52 32">
+    <div style="transform: rotate(${bearing}deg); transition: transform 0.2s ease; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
+      <svg width="40" height="24" viewBox="0 0 52 32">
         <rect x="1" y="8" width="36" height="18" rx="3" fill="#6366f1"/>
         <rect x="37" y="11" width="13" height="15" rx="3" fill="#4f46e5"/>
         <rect x="39" y="12" width="9" height="9" rx="2" fill="#e0f2fe"/>
@@ -44,91 +44,145 @@ const createVanIcon = () => L.divIcon({
       </svg>
     </div>
   `,
-  iconSize: [48, 28],
-  iconAnchor: [24, 28],
+  iconSize: [40, 24],
+  iconAnchor: [20, 12],
 });
+
+// Map Auto-Center Component
+function ChangeView({ center, zoom }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  return null;
+}
 
 const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance }) => {
   const [isSimulating, setIsSimulating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [currentStopIndex, setCurrentStopIndex] = useState(0); // Index in route array
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0); 
+  const [roadPath, setRoadPath] = useState([]); // High-res road coordinates
+  const [vanPos, setVanPos] = useState([warehouse.latitude, warehouse.longitude]);
+  const [vanBearing, setVanBearing] = useState(0);
   const [deliveredStops, setDeliveredStops] = useState(new Set());
   const [isDwellTime, setIsDwellTime] = useState(false);
-  const [vanPos, setVanPos] = useState([warehouse.latitude, warehouse.longitude]);
-  const [statusMessage, setStatusMessage] = useState('System ready. Select a hub city to start.');
+  const [dwellCountdown, setDwellCountdown] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('System ready. Launch simulation to begin.');
   const [completedPath, setCompletedPath] = useState([]);
+  const [isLoadingPath, setIsLoadingPath] = useState(false);
   
-  const mapRef = useRef(null);
-  const vanMarkerRef = useRef(null);
   const animationRef = useRef(null);
+  const lastUpdateRef = useRef(0);
 
-  // Helper: Find coordinate point in route for a stop
-  const findStopCoordIndex = (stop) => {
-    // In our simplified mock, route is exactly stop sequence
-    return route.findIndex(s => s.id === stop.id);
-  };
+  // 1. Fetch OSRM Road Geometry when route changes
+  useEffect(() => {
+    const fetchRoadGeometry = async () => {
+      if (!route || route.length < 2) return;
+      
+      setIsLoadingPath(true);
+      try {
+        const coords = route.map(s => `${s.longitude},${s.latitude}`).join(';');
+        const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.code === 'Ok' && data.routes.length > 0) {
+          const path = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+          setRoadPath(path);
+          // Pre-set van position to start
+          setVanPos(path[0]);
+        }
+      } catch (err) {
+        console.error('OSRM Fetch Error:', err);
+        // Fallback to direct stops if OSRM fails
+        setRoadPath(route.map(s => [s.latitude, s.longitude]));
+      } finally {
+        setIsLoadingPath(false);
+      }
+    };
+
+    fetchRoadGeometry();
+  }, [route]);
 
   const startSimulation = () => {
+    if (roadPath.length === 0) return;
     setIsSimulating(true);
     setIsPaused(false);
-    setCurrentStopIndex(0);
+    setCurrentSegmentIndex(0);
     setDeliveredStops(new Set());
-    setCompletedPath([[warehouse.latitude, warehouse.longitude]]);
-    setStatusMessage('🚚 Van departing from warehouse...');
+    setCompletedPath([roadPath[0]]);
+    setStatusMessage('🚚 Van departing from hub...');
   };
 
   const resetSimulation = () => {
     setIsSimulating(false);
     setIsPaused(false);
-    setCurrentStopIndex(0);
+    setCurrentSegmentIndex(0);
     setDeliveredStops(new Set());
-    setVanPos([warehouse.latitude, warehouse.longitude]);
+    setVanPos(roadPath.length > 0 ? roadPath[0] : [warehouse.latitude, warehouse.longitude]);
     setCompletedPath([]);
+    setVanBearing(0);
+    setIsDwellTime(false);
+    setDwellCountdown(0);
     setStatusMessage('System reset. Ready for new simulation.');
-    if (animationRef.current) clearTimeout(animationRef.current);
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
   };
 
   const togglePause = () => setIsPaused(!isPaused);
 
-  // Master Animation Logic
-  useEffect(() => {
-    if (!isSimulating || isPaused || isDwellTime) return;
+  // Helper: Calculate bearing
+  const calculateBearing = (p1, p2) => {
+    const lat1 = p1[0] * Math.PI / 180;
+    const lon1 = p1[1] * Math.PI / 180;
+    const lat2 = p2[0] * Math.PI / 180;
+    const lon2 = p2[1] * Math.PI / 180;
+    const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+    const brng = Math.atan2(y, x) * 180 / Math.PI;
+    return (brng + 360) % 360;
+  };
 
-    if (currentStopIndex >= route.length - 1) {
-      setStatusMessage('✅ Journey Complete. Van returned to Hub.');
+  // Master Animation Loop
+  useEffect(() => {
+    if (!isSimulating || isPaused || isDwellTime || roadPath.length === 0) return;
+
+    if (currentSegmentIndex >= roadPath.length - 1) {
+      setStatusMessage('✅ Mission complete. Van returned to hub.');
       setIsSimulating(false);
       return;
     }
 
-    const nextStopIndex = currentStopIndex + 1;
-    const from = route[currentStopIndex];
-    const to = route[nextStopIndex];
-
-    setStatusMessage(`🚚 Heading to: ${to.name}...`);
-
-    // Animate move to next stop
-    const animationDuration = 2000;
-    const start = performance.now();
-
     const animate = (time) => {
-      if (isPaused) return;
-      
-      const elapsed = time - start;
-      const progress = Math.min(elapsed / animationDuration, 1);
+      if (lastUpdateRef.current === 0) lastUpdateRef.current = time;
+      const deltaTime = time - lastUpdateRef.current;
 
-      const lat = from.latitude + (to.latitude - from.latitude) * progress;
-      const lng = from.longitude + (to.longitude - from.longitude) * progress;
-      
-      const newPos = [lat, lng];
-      setVanPos(newPos);
-      setCompletedPath(prev => [...prev, newPos]);
+      // Update every ~30ms for smoothness
+      if (deltaTime > 30) {
+        lastUpdateRef.current = time;
+        
+        const nextIdx = currentSegmentIndex + 1;
+        const currentPos = roadPath[currentSegmentIndex];
+        const nextPos = roadPath[nextIdx];
 
-      if (progress < 1) {
-        animationRef.current = requestAnimationFrame(animate);
-      } else {
-        // Arrived at stop
-        handleArrival(to, nextStopIndex);
+        // Check if we reached a delivery stop
+        // We match by finding nearest delivery stop within distance (threshold)
+        const currentStop = route.find(s => {
+          const d = Math.sqrt(Math.pow(s.latitude - nextPos[0], 2) + Math.pow(s.longitude - nextPos[1], 2));
+          return d < 0.0001 && !deliveredStops.has(s.id) && s.id !== warehouse.id;
+        });
+
+        const bearing = calculateBearing(currentPos, nextPos);
+        setVanBearing(bearing);
+        setVanPos(nextPos);
+        setCompletedPath(prev => [...prev, nextPos]);
+        setCurrentSegmentIndex(nextIdx);
+
+        if (currentStop) {
+          handleArrival(currentStop);
+          return;
+        }
       }
+      animationRef.current = requestAnimationFrame(animate);
     };
 
     animationRef.current = requestAnimationFrame(animate);
@@ -136,201 +190,275 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance 
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isSimulating, isPaused, currentStopIndex, isDwellTime]);
+  }, [isSimulating, isPaused, currentSegmentIndex, isDwellTime, roadPath, route, deliveredStops, warehouse.id]);
 
-  const handleArrival = (stop, index) => {
-    if (stop.id === warehouse.id) {
-       setCurrentStopIndex(index);
-       return;
-    }
-
+  const handleArrival = (stop) => {
     setIsDwellTime(true);
-    setStatusMessage(`⏹️ Stopped at ${stop.name}. Delivering parcels...`);
+    setDwellCountdown(5);
+    setStatusMessage(`⏹️ Stopped at ${stop.name}. Delivering...`);
     
-    // 5-second dwell
-    setTimeout(() => {
-      setDeliveredStops(prev => new Set(prev).add(stop.id));
-      setIsDwellTime(false);
-      setCurrentStopIndex(index);
-    }, STOP_DWELL_TIME);
+    const timer = setInterval(() => {
+      setDwellCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setDeliveredStops(prevSet => new Set(prevSet).add(stop.id));
+          setIsDwellTime(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
-  const overallProgress = (currentStopIndex / (route.length - 1)) * 100;
-  const plannedPath = route.map(s => [s.latitude, s.longitude]);
+  const overallProgress = roadPath.length > 0 ? (currentSegmentIndex / (roadPath.length - 1)) * 100 : 0;
+
+  // Find currently targeted stop
+  const targetStop = route.find(s => !deliveredStops.has(s.id) && s.id !== warehouse.id) || { name: 'Returning to Hub' };
 
   return (
-    <div className="flex h-full w-full bg-slate-100 overflow-hidden">
-      {/* Map Content */}
+    <div className="flex h-full w-full bg-slate-50 overflow-hidden font-sans">
+      {/* LEFT: Map & Overlays */}
       <div className="flex-1 relative">
         <MapContainer
           center={[warehouse.latitude, warehouse.longitude]}
-          zoom={13}
+          zoom={14}
           style={{ height: '100%', width: '100%' }}
-          whenCreated={mapInstance => { mapRef.current = mapInstance; }}
+          zoomControl={false}
         >
-          <TileLayer url="https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png" />
-          
-          {/* Planned Route - Dashed Orange */}
-          <Polyline 
-            positions={plannedPath} 
-            color="#f97316" 
-            dashArray="10, 15" 
-            weight={3} 
-            opacity={0.6}
+          <ChangeView center={[warehouse.latitude, warehouse.longitude]} zoom={14} />
+          <TileLayer 
+             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
           
-          {/* Completed Path - Solid Green */}
+          {/* Road Path (OSRM) */}
+          <Polyline 
+            positions={roadPath} 
+            color="#6366f1" 
+            weight={4} 
+            opacity={0.3}
+          />
+          
+          {/* Completed Path */}
           <Polyline 
             positions={completedPath} 
-            color="#10b981" 
-            weight={5} 
-            opacity={0.8}
+            color="#6366f1" 
+            weight={6} 
+            opacity={0.9}
           />
 
-          {/* Markers */}
+          {/* Hub Marker */}
           <Marker position={[warehouse.latitude, warehouse.longitude]} icon={createStopMarker(false, false, 'H')}>
-            <Popup>Main Hub Warehouse</Popup>
+            <Popup>Main Logistics Hub</Popup>
           </Marker>
 
+          {/* Delivery Stops */}
           {deliveryStops.map((stop, idx) => (
             <Marker 
               key={stop.id} 
               position={[stop.latitude, stop.longitude]}
-              icon={createStopMarker(deliveredStops.has(stop.id), route[currentStopIndex+1]?.id === stop.id, idx + 1)}
+              icon={createStopMarker(deliveredStops.has(stop.id), targetStop.id === stop.id, idx + 1)}
             >
               <Popup>{stop.name}</Popup>
             </Marker>
           ))}
 
           {/* Van Marker */}
-          <Marker position={vanPos} icon={createVanIcon()} zIndexOffset={1000} />
+          <Marker position={vanPos} icon={createVanIcon(vanBearing)} zIndexOffset={1000} />
         </MapContainer>
 
-        {/* Floating Status Card */}
-        <div className="absolute top-4 left-4 z-[1000] w-72 bg-white/95 backdrop-blur shadow-2xl rounded-2xl p-4 border border-slate-200 animate-in fade-in slide-in-from-left duration-500">
-           <div className="flex items-center gap-3 mb-2">
-             <div className={`p-2 rounded-lg ${isDwellTime ? 'bg-amber-100' : 'bg-indigo-100'}`}>
-               {isDwellTime ? <Package className="w-5 h-5 text-amber-600 animate-bounce" /> : <Truck className="w-5 h-5 text-indigo-600" />}
+        {/* OVERLAY: Top-Left Analytics Panels */}
+        <div className="absolute top-6 left-6 z-[1000] flex flex-col gap-4 pointer-events-none">
+          {/* Live Status Box */}
+          <div className="w-80 bg-white/90 backdrop-blur-md shadow-xl rounded-2xl p-5 border border-white/50 pointer-events-auto transform transition-all hover:scale-105">
+             <div className="flex items-center gap-4 mb-4">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDwellTime ? 'bg-amber-100' : 'bg-indigo-100'}`}>
+                  {isDwellTime ? <Package className="w-6 h-6 text-amber-600 animate-pulse" /> : <Truck className="w-6 h-6 text-indigo-600" />}
+                </div>
+                <div>
+                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Status</h4>
+                   <p className="text-sm font-bold text-slate-800 uppercase tracking-tighter">{isDwellTime ? 'Stop in Progress' : (isSimulating ? 'In Transit' : 'System Ready')}</p>
+                </div>
              </div>
-             <div className="flex-1">
-               <h4 className="text-sm font-bold text-slate-900 leading-tight">Live Status</h4>
-               <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{isDwellTime ? 'Stop in Progress' : 'In Transit'}</p>
+             
+             <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 mb-1">Heading to:</p>
+                <p className="text-sm font-bold text-slate-900 truncate">{targetStop.name} {isDwellTime && <span className="text-amber-600 ml-1">({dwellCountdown}s)</span>}</p>
              </div>
-           </div>
-           <p className="text-sm font-medium text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-100 mb-3">{statusMessage}</p>
-           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-             <div 
-               className="h-full bg-indigo-500 transition-all duration-500 rounded-full" 
-               style={{ width: `${overallProgress}%` }}
-             />
+          </div>
+
+          {/* Algorithm Audit Panel */}
+          <div className="w-80 bg-slate-900/90 backdrop-blur-md shadow-2xl rounded-2xl p-5 border border-slate-700 pointer-events-auto">
+             <div className="flex items-center gap-2 mb-3">
+                <Info className="w-4 h-4 text-indigo-400" />
+                <h4 className="text-xs font-bold text-indigo-100 uppercase tracking-wider">Algorithm Audit Panel</h4>
+             </div>
+             <div className="space-y-2">
+                <div className="flex justify-between items-center text-[11px]">
+                   <span className="text-slate-400">Stop order optimized by:</span>
+                   <span className="text-indigo-300 font-bold">A* Algorithm</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                   <span className="text-slate-400">Road geometry:</span>
+                   <span className="text-emerald-400 font-bold flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"/>
+                      OSRM (Real Roads)
+                   </span>
+                </div>
+             </div>
+          </div>
+        </div>
+
+        {/* OVERLAY: Bottom Playback Controls */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-4xl pointer-events-auto">
+           <div className="bg-slate-900/95 backdrop-blur-lg shadow-2xl rounded-2xl p-4 border border-slate-800 flex items-center gap-6">
+              <button 
+                onClick={isSimulating ? togglePause : startSimulation}
+                className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-900 hover:scale-110 active:scale-95 transition-all shadow-lg"
+              >
+                {isSimulating && !isPaused ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
+              </button>
+
+              <div className="flex-1 flex flex-col gap-2">
+                <div className="h-2 w-full bg-slate-800 rounded-full relative overflow-hidden">
+                   <div 
+                      className="absolute top-0 left-0 h-full bg-indigo-500 transition-all duration-300"
+                      style={{ width: `${overallProgress}%` }}
+                   />
+                </div>
+                <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                   <span>00:00:00</span>
+                   <span className="text-slate-300">Intra-City Journey ID: LOGI-TRK-782</span>
+                   <span>00:00:30 (Scaled)</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={resetSimulation}
+                className="p-2 text-slate-400 hover:text-white transition-colors"
+                title="Reset System"
+              >
+                 <RotateCcw className="w-5 h-5" />
+              </button>
            </div>
         </div>
       </div>
 
-      {/* Control Sidebar */}
-      <div className="w-[400px] border-l border-slate-200 bg-white shadow-2xl flex flex-col z-20">
-        <div className="p-6 border-b border-slate-100">
-           <div className="flex items-center justify-between mb-6">
-             <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-               <Navigation className="w-6 h-6 text-indigo-600" />
-               Mission Control
-             </h2>
-             <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-full border border-indigo-100 uppercase">
-               City Scale: 15km
-             </span>
+      {/* RIGHT: Control Sidebar */}
+      <div className="w-[420px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)]">
+        <div className="p-8 border-b border-slate-100">
+           <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                    <Navigation className="w-6 h-6" />
+                 </div>
+                 <h2 className="text-2xl font-black text-slate-900 tracking-tight">Mission Control</h2>
+              </div>
+              <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-full border border-indigo-100 uppercase tracking-widest">
+                City Scale: 15KM
+              </span>
            </div>
 
-           <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Distance</span>
-                <p className="text-lg font-black text-slate-800">{totalDistance.toFixed(2)}km</p>
+           <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-colors group">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-400">Distance</p>
+                 <p className="text-2xl font-black text-slate-800 tracking-tighter">{totalDistance.toFixed(2)}km</p>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Stops</span>
-                <p className="text-lg font-black text-slate-800">{deliveryStops.length}</p>
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-colors group">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-400">Total Stops</p>
+                 <p className="text-2xl font-black text-slate-800 tracking-tighter">{deliveryStops.length}</p>
               </div>
            </div>
 
-           <div className="flex flex-col gap-3">
-              <button 
-                onClick={isSimulating ? togglePause : startSimulation}
-                className={`w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg ${
-                  isSimulating 
-                    ? (isPaused ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
-                }`}
-              >
-                {isSimulating ? (isPaused ? <Play className="w-5 h-5 fill-current" /> : <Pause className="w-5 h-5 fill-current" />) : <Play className="w-5 h-5 fill-current" />}
-                {isSimulating ? (isPaused ? 'Resume Mission' : 'Pause Tracking') : 'Launch Simulation'}
-              </button>
-              
+           <button 
+              onClick={isSimulating ? togglePause : startSimulation}
+              disabled={isLoadingPath}
+              className={`w-full py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl disabled:opacity-50 ${
+                isSimulating 
+                  ? (isPaused ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              }`}
+           >
+              {isLoadingPath ? 'Analyzing Roads...' : (
+                <>
+                  {isSimulating ? (isPaused ? <Play className="w-5 h-5 fill-current" /> : <Pause className="w-5 h-5 fill-current" />) : <Play className="w-5 h-5 fill-current" />}
+                  {isSimulating ? (isPaused ? 'Resume Mission' : 'Pause Tracking') : 'Launch Simulation'}
+                </>
+              )}
+           </button>
+           
+           <div className="mt-4 text-center">
               <button 
                 onClick={resetSimulation}
-                className="w-full py-3 rounded-xl font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all"
+                className="text-xs font-bold text-slate-400 hover:text-indigo-600 flex items-center justify-center gap-1 mx-auto transition-colors"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-3 h-3" />
                 Reset System
               </button>
            </div>
         </div>
 
-        {/* Real-time Stop Checklist */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-          <div className="flex items-center gap-2 mb-4 text-slate-400">
-             <Clock className="w-4 h-4" />
-             <span className="text-xs font-bold uppercase tracking-widest">Delivery Sequence</span>
-          </div>
-
-          <div className="space-y-4">
-             {route.map((stop, idx) => {
-               const isDelivered = deliveredStops.has(stop.id);
-               const isCurrent = route[currentStopIndex+1]?.id === stop.id;
-               const isWarehouse = stop.id === warehouse.id;
-
-               return (
-                 <div 
-                   key={`${stop.id}-${idx}`}
-                   className={`flex items-start gap-4 p-3.5 rounded-xl border transition-all duration-300 ${
-                     isDelivered ? 'bg-emerald-50 border-emerald-100' : 
-                     (isCurrent ? 'bg-amber-50 border-amber-200 scale-105 shadow-md' : 'bg-white border-slate-100 opacity-60')
-                   }`}
-                 >
-                   <div className={`mt-1 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                     isDelivered ? 'bg-emerald-500' : (isCurrent ? 'bg-amber-500' : 'bg-slate-200')
-                   }`}>
-                     {isDelivered ? <CheckCircle2 className="w-4 h-4 text-white" /> : <span className="text-[10px] font-bold text-slate-600">{idx === 0 ? '🏭' : idx}</span>}
-                   </div>
-                   <div className="flex-1">
-                     <p className={`text-sm font-bold ${isDelivered ? 'text-emerald-900 border-b border-emerald-100 pb-1 mb-1' : 'text-slate-800'}`}>
-                       {isWarehouse ? 'Return to Hub' : stop.name}
-                     </p>
-                     <p className="text-[11px] text-slate-500 leading-relaxed">{stop.address}</p>
-                     {isDwellTime && isCurrent && (
-                        <div className="mt-2 flex items-center gap-2">
-                           <div className="flex gap-1">
-                             {[1,2,3,4,5].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: `${i*0.2}s` }} />)}
-                           </div>
-                           <span className="text-[9px] font-black text-amber-600 uppercase tracking-tighter">Delivering...</span>
-                        </div>
-                     )}
-                   </div>
-                 </div>
-               );
-             })}
-          </div>
-        </div>
-
-        {/* Global Progress Dashboard */}
-        <div className="p-6 bg-slate-900">
-           <div className="flex items-center justify-between mb-3">
-             <span className="text-[10px] font-black text-slate-400 uppercase">Mission Progress</span>
-             <span className="text-xl font-black text-white">{Math.round(overallProgress)}%</span>
+        {/* DELIVERY SEQUENCE LIST */}
+        <div className="flex-1 overflow-y-auto p-8 scrollbar-hide bg-slate-50/30">
+           <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                 <Clock className="w-4 h-4 text-slate-400" />
+                 <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Delivery Sequence</span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-300">{deliveredStops.size} / {deliveryStops.length} done</span>
            </div>
-           <div className="w-full bg-slate-800 rounded-full h-3 p-0.5 shadow-inner">
-             <div 
-               className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)] transition-all duration-700"
-               style={{ width: `${overallProgress}%` }}
-             />
+
+           <div className="space-y-4">
+              {/* Return to Hub (Start) */}
+              <div className="flex items-start gap-4 p-4 rounded-2xl border bg-white border-slate-100 opacity-80">
+                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm">🏭</div>
+                 <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-400">Logistics Hub Departure</p>
+                    <p className="text-[11px] text-slate-300">Warehouse Origin</p>
+                 </div>
+              </div>
+
+              {route.filter(s => s.id !== warehouse.id).map((stop, idx) => {
+                const isDelivered = deliveredStops.has(stop.id);
+                const isCurrent = targetStop.id === stop.id;
+
+                return (
+                  <div 
+                    key={`${stop.id}-${idx}`}
+                    className={`group flex items-start gap-4 p-5 rounded-2xl border transition-all duration-500 ${
+                      isDelivered ? 'bg-indigo-50/30 border-indigo-100/50 grayscale-[0.5]' : 
+                      (isCurrent ? 'bg-white border-white ring-4 ring-indigo-50 shadow-2xl scale-[1.02]' : 'bg-white border-slate-100 opacity-60')
+                    }`}
+                  >
+                    <div className={`mt-1 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                      isDelivered ? 'bg-indigo-600 text-white' : (isCurrent ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200')
+                    }`}>
+                      {isDelivered ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-1">
+                        <p className={`text-sm font-black truncate ${isDelivered ? 'text-slate-400' : 'text-slate-900 underline-offset-4 decoration-indigo-200 decoration-2'}`}>
+                          {stop.name}
+                        </p>
+                        {isCurrent && <ChevronRight className="w-4 h-4 text-indigo-600 animate-pulse" />}
+                      </div>
+                      <p className={`text-[11px] leading-relaxed line-clamp-2 ${isDelivered ? 'text-slate-300' : 'text-slate-500'}`}>
+                        {stop.address}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Final Return */}
+              <div className={`flex items-start gap-4 p-4 rounded-2xl border transition-all ${
+                deliveredStops.size === deliveryStops.length && !isSimulating ? 'bg-indigo-600 border-indigo-700 shadow-xl' : 'bg-white border-slate-100 opacity-30'
+              }`}>
+                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm">🏁</div>
+                 <div className="flex-1">
+                    <p className={`text-sm font-bold ${deliveredStops.size === deliveryStops.length && !isSimulating ? 'text-white' : 'text-slate-400'}`}>Return to Hub</p>
+                 </div>
+              </div>
            </div>
         </div>
       </div>
