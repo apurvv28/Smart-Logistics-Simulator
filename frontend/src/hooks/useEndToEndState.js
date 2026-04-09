@@ -26,32 +26,63 @@ export function useEndToEndState() {
    * @param {string} primaryAlgorithmMacro - BELLMAN_FORD or FLOYD_WARSHALL
    * @param {string} secondaryAlgorithmMicro - DIJKSTRA or A_STAR
    */
-  const initiateJourney = async (originCityId, destinationCityId, deliveryAddresses, primaryAlgorithmMacro, secondaryAlgorithmMicro) => {
+  const ALGO_MAP = {
+    'Bellman-Ford':    'BELLMAN_FORD',
+    'Floyd-Warshall':  'FLOYD_WARSHALL',
+    'Dijkstra':        'DIJKSTRA',
+    'A*':              'A_STAR',
+    // Fallbacks if backend values are passed directly
+    'BELLMAN_FORD':    'BELLMAN_FORD',
+    'FLOYD_WARSHALL':  'FLOYD_WARSHALL',
+    'DIJKSTRA':        'DIJKSTRA',
+    'A_STAR':          'A_STAR'
+  };
+
+  const DELIVERY_ADDRESSES = [
+    { id: 'addr1', name: 'Hinjewadi Tech Park', latitude: 18.5912, longitude: 73.7719, address: 'Phase 1, Hinjewadi, Pune', type: 'delivery' },
+    { id: 'addr2', name: 'Koregaon Park', latitude: 18.5384, longitude: 73.8903, address: 'Koregaon Park, Pune', type: 'delivery' },
+    { id: 'addr3', name: 'Baner', latitude: 18.5596, longitude: 73.8142, address: 'Baner, Pune', type: 'delivery' },
+    { id: 'addr4', name: 'Viman Nagar', latitude: 18.4674, longitude: 73.9162, address: 'Viman Nagar, Pune', type: 'delivery' }
+  ];
+
+  const initiateJourney = async (macroAlgoDisplay, microAlgoDisplay) => {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await axios.post(`${API_BASE}/initiate-journey`, {
-        originCityId,
-        destinationCityId,
-        deliveryAddresses,
-        primaryAlgorithmMacro,
-        secondaryAlgorithmMicro
+
+      const body = {
+        originCityId: 0,
+        destinationCityId: 4,
+        primaryAlgorithmMacro: ALGO_MAP[macroAlgoDisplay] || 'BELLMAN_FORD',
+        secondaryAlgorithmMicro: ALGO_MAP[microAlgoDisplay] || 'DIJKSTRA',
+        deliveryAddresses: DELIVERY_ADDRESSES
+      };
+
+      const response = await fetch(`${API_BASE}/initiate-journey`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       });
 
-      if (data.status === 'success') {
-        setJourney(data.journey);
-        setJourneyId(data.journey.journeyId);
-        setStatusMessage('🚀 Journey initiated! Starting simulation...');
-        setAuditData(data.journey);
-        return data.journey;
-      } else {
-        throw new Error(data.message || 'Failed to initiate journey');
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`System sync failed (${response.status})`);
       }
+
+      const data = await response.json();
+
+      if (data.status !== 'success') {
+        throw new Error(data.message || 'Journey initiation failed');
+      }
+
+      setJourneyId(data.journeyId);
+      setJourney(data.journey);
+      setStatusMessage(data.journey.statusMessage || 'Journey initialized');
+      return data.journey;
     } catch (err) {
-      const msg = `❌ Journey initiation failed: ${err.response?.data?.message || err.message}`;
-      setStatusMessage(msg);
-      setError(msg);
-      console.error('Journey initiation error:', err);
+      setError(err.message);
+      setStatusMessage(`❌ Error: ${err.message}`);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -89,14 +120,50 @@ export function useEndToEndState() {
     }
   };
 
+  // journeyIdRef keeps the latest journeyId accessible inside the interval closure
+  const journeyIdRef = useRef(journeyId);
+  useEffect(() => { journeyIdRef.current = journeyId; }, [journeyId]);
+
   /**
    * Starts animation loop
    */
   const startAnimation = () => {
-    if (!journeyId) return;
+    if (animationIntervalRef.current) clearInterval(animationIntervalRef.current);
     setIsAnimating(true);
     setIsPaused(false);
+    
+    animationIntervalRef.current = setInterval(async () => {
+      if (isPaused) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/advance-step/${journeyIdRef.current}`, {
+          method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          setJourney(data.journey);
+          setStatusMessage(data.journey.statusMessage);
+          
+          if (data.journey.currentPhase === 'DELIVERED') {
+            clearInterval(animationIntervalRef.current);
+            setIsAnimating(false);
+          }
+        }
+      } catch (err) {
+        console.error('advanceStep failed:', err);
+      }
+    }, 2000);
   };
+
+  /**
+   * Auto-start animation when journey is first created
+   */
+  useEffect(() => {
+    if (journey && journey.currentPhase === 'IN_MACRO_TRANSIT' && !isAnimating) {
+      startAnimation();
+    }
+  }, [journey?.journeyId]);
 
   /**
    * Pauses animation loop
@@ -105,9 +172,6 @@ export function useEndToEndState() {
     setIsPaused(true);
   };
 
-  /**
-   * Resumes animation loop
-   */
   const resumeAnimation = () => {
     setIsPaused(false);
   };
@@ -126,23 +190,6 @@ export function useEndToEndState() {
       clearInterval(animationIntervalRef.current);
     }
   };
-
-  /**
-   * Animation loop: auto-advances every 2 seconds when animating
-   */
-  useEffect(() => {
-    if (!isAnimating || isPaused || !journeyId) return;
-
-    animationIntervalRef.current = setInterval(() => {
-      advanceStep(journeyId);
-    }, 2000); // 2 second intervals
-
-    return () => {
-      if (animationIntervalRef.current) {
-        clearInterval(animationIntervalRef.current);
-      }
-    };
-  }, [isAnimating, isPaused, journeyId]);
 
   /**
    * Auto-stop animation when journey is complete

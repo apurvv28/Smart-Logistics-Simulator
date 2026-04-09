@@ -70,7 +70,7 @@ function AutoFitBounds({ coordinates }) {
   return null;
 }
 
-const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance }) => {
+const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance, autoSimulate = false }) => {
   const [isSimulating, setIsSimulating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0); 
@@ -116,6 +116,13 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance 
 
     fetchRoadGeometry();
   }, [route]);
+
+  // Auto-start for End-to-End integration
+  useEffect(() => {
+    if (autoSimulate && roadPath.length > 0 && !isSimulating) {
+      startSimulation();
+    }
+  }, [autoSimulate, roadPath, isSimulating]);
 
   const startSimulation = () => {
     if (roadPath.length === 0) return;
