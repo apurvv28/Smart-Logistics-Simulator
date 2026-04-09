@@ -34,7 +34,17 @@ function createStopMarker(isDelivered, isCurrent, index) {
 const createVanIcon = (bearing = 0) => L.divIcon({
   className: '',
   html: `
-    <div style="transform: rotate(${bearing}deg); transition: transform 0.2s ease; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
+    <div style="
+      transform: rotate(${bearing - 90}deg); 
+      transform-origin: center center;
+      width: 40px; 
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s linear;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+    ">
       <svg width="40" height="24" viewBox="0 0 52 32">
         <rect x="1" y="8" width="36" height="18" rx="3" fill="#6366f1"/>
         <rect x="37" y="11" width="13" height="15" rx="3" fill="#4f46e5"/>
@@ -45,15 +55,18 @@ const createVanIcon = (bearing = 0) => L.divIcon({
     </div>
   `,
   iconSize: [40, 24],
-  iconAnchor: [20, 12],
+  iconAnchor: [20, 24],
 });
 
-// Map Auto-Center Component
-function ChangeView({ center, zoom }) {
+// Map Auto-Center Component (Runs ONCE when route loads)
+function AutoFitBounds({ coordinates }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, zoom);
-  }, [center, zoom, map]);
+    if (coordinates && coordinates.length > 0) {
+      const bounds = L.latLngBounds(coordinates);
+      map.fitBounds(bounds, { padding: [40, 40] });
+    }
+  }, [coordinates, map]); // coordinates instance changes only on new route
   return null;
 }
 
@@ -203,6 +216,7 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance 
           clearInterval(timer);
           setDeliveredStops(prevSet => new Set(prevSet).add(stop.id));
           setIsDwellTime(false);
+          lastUpdateRef.current = 0; // Restart frame calculations cleanly
           return 0;
         }
         return prev - 1;
@@ -221,11 +235,15 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance 
       <div className="flex-1 relative">
         <MapContainer
           center={[warehouse.latitude, warehouse.longitude]}
-          zoom={14}
+          zoom={13}
+          scrollWheelZoom={true}
+          dragging={true}
+          zoomControl={true}
+          touchZoom={true}
+          doubleClickZoom={true}
           style={{ height: '100%', width: '100%' }}
-          zoomControl={false}
         >
-          <ChangeView center={[warehouse.latitude, warehouse.longitude]} zoom={14} />
+          <AutoFitBounds coordinates={route ? route.map(s => [s.latitude, s.longitude]) : []} />
           <TileLayer 
              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -267,6 +285,36 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance 
           <Marker position={vanPos} icon={createVanIcon(vanBearing)} zIndexOffset={1000} />
         </MapContainer>
 
+        {/* 5-SECOND DWELL COUNTDOWN OVERLAY ON MAP */}
+        {isDwellTime && (
+          <div style={{
+            position: 'absolute',
+            bottom: '120px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000,
+            background: 'rgba(15,15,25,0.92)',
+            border: '1px solid #4ade80',
+            borderRadius: '12px',
+            padding: '12px 24px',
+            color: 'white',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)'
+          }}>
+            <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px' }}>
+              📦 DELIVERING
+            </div>
+            <div style={{ fontSize: '13px', fontWeight: 600, margin: '4px 0' }}>
+              {targetStop.name}
+            </div>
+            <div style={{ fontSize: '36px', fontWeight: 800, color: '#facc15', lineHeight: 1 }}>
+              {dwellCountdown}
+            </div>
+            <div style={{ fontSize: '10px', color: '#9ca3af' }}>seconds</div>
+          </div>
+        )}
+
         {/* OVERLAY: Top-Left Analytics Panels */}
         <div className="absolute top-6 left-6 z-[1000] flex flex-col gap-4 pointer-events-none">
           {/* Live Status Box */}
@@ -283,7 +331,17 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance 
              
              <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
                 <p className="text-xs font-semibold text-slate-500 mb-1">Heading to:</p>
-                <p className="text-sm font-bold text-slate-900 truncate">{targetStop.name} {isDwellTime && <span className="text-amber-600 ml-1">({dwellCountdown}s)</span>}</p>
+                <div className="flex justify-between items-center mb-1">
+                   <p className="text-sm font-bold text-slate-900 truncate flex-1">{targetStop.name} {isDwellTime && <span className="text-amber-600 ml-1">({dwellCountdown}s)</span>}</p>
+                   <span className="text-[10px] font-black text-indigo-500 ml-2">{Math.round(overallProgress)}%</span>
+                </div>
+                {/* Progress Bar moved here */}
+                <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                   <div 
+                      className="h-full bg-indigo-500 transition-all duration-300 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+                      style={{ width: `${overallProgress}%` }}
+                   />
+                </div>
              </div>
           </div>
 
@@ -309,39 +367,6 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance 
           </div>
         </div>
 
-        {/* OVERLAY: Bottom Playback Controls */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-4xl pointer-events-auto">
-           <div className="bg-slate-900/95 backdrop-blur-lg shadow-2xl rounded-2xl p-4 border border-slate-800 flex items-center gap-6">
-              <button 
-                onClick={isSimulating ? togglePause : startSimulation}
-                className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-900 hover:scale-110 active:scale-95 transition-all shadow-lg"
-              >
-                {isSimulating && !isPaused ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
-              </button>
-
-              <div className="flex-1 flex flex-col gap-2">
-                <div className="h-2 w-full bg-slate-800 rounded-full relative overflow-hidden">
-                   <div 
-                      className="absolute top-0 left-0 h-full bg-indigo-500 transition-all duration-300"
-                      style={{ width: `${overallProgress}%` }}
-                   />
-                </div>
-                <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                   <span>00:00:00</span>
-                   <span className="text-slate-300">Intra-City Journey ID: LOGI-TRK-782</span>
-                   <span>00:00:30 (Scaled)</span>
-                </div>
-              </div>
-
-              <button 
-                onClick={resetSimulation}
-                className="p-2 text-slate-400 hover:text-white transition-colors"
-                title="Reset System"
-              >
-                 <RotateCcw className="w-5 h-5" />
-              </button>
-           </div>
-        </div>
       </div>
 
       {/* RIGHT: Control Sidebar */}

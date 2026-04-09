@@ -5,18 +5,7 @@ import com.logicore.engine.model.*;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
-/**
- * End-To-End Journey Service: Orchestrates complete order fulfillment
- * combining macro (inter-city) and micro (intra-city) routing.
- *
- * Flow:
- * 1. Macro Phase: Order placed in Delhi → Package routes to Pune warehouse using Bellman-Ford/Floyd-Warshall
- * 2. Transition: At Pune warehouse, calculate local delivery route to customer address
- * 3. Micro Phase: Local delivery using Dijkstra/A* and TSP optimization
- * 4. Delivery: Final drop-off at customer doorstep
- */
 @Service
 public class EndToEndJourneyService {
     private final DijkstraService dijkstraService;
@@ -25,6 +14,8 @@ public class EndToEndJourneyService {
     private final FloydWarshallService floydWarshallService;
     private final LocalDeliveryService localDeliveryService;
     private final LogisticsGraph logisticsGraph;
+
+    private final Map<String, EndToEndJourneyState> journeyStore = new HashMap<>();
 
     public EndToEndJourneyService(DijkstraService dijkstraService,
                                    AStarService aStarService,
@@ -40,224 +31,174 @@ public class EndToEndJourneyService {
         this.logisticsGraph = logisticsGraph;
     }
 
-    /**
-     * Initiates end-to-end journey combining macro and micro routing
-     *
-     * @param originCityId Delhi warehouse (city network node ID)
-     * @param destinationCityId Pune warehouse (city network node ID)
-     * @param deliveryAddresses 3-4 customer addresses in Pune
-     * @param primaryAlgorithmMacro "BELLMAN_FORD" or "FLOYD_WARSHALL"
-     * @param secondaryAlgorithmMicro "DIJKSTRA" or "A_STAR"
-     * @return Complete journey state with both macro and micro phases
-     */
-    public EndToEndJourneyState initiateJourney(
-            int originCityId,
-            int destinationCityId,
-            List<LocalDeliveryStop> deliveryAddresses,
-            String primaryAlgorithmMacro,
-            String secondaryAlgorithmMicro) {
-
+    public EndToEndJourneyState initiateJourney(int originId, int destId, String macroAlgo, String microAlgo, List<LocalDeliveryStop> deliveryAddresses) {
         String journeyId = "JRN-" + System.currentTimeMillis();
-        EndToEndJourneyState journey = new EndToEndJourneyState(journeyId, null);
+        EndToEndJourneyState state = new EndToEndJourneyState();
+        state.setJourneyId(journeyId);
+        state.setMacroOriginCityId(originId);
+        state.setMacroDestinationCityId(destId);
+        state.setMacroAlgorithmUsed(macroAlgo);
+        state.setMicroAlgorithmUsed(microAlgo);
+        state.setMicroDeliveryAddresses(deliveryAddresses);
+        state.setCurrentPhase(EndToEndJourneyState.JourneyPhase.INITIATED);
 
-        // ============== PHASE 1: MACRO ROUTING (INTER-CITY) ==============
-        journey.setMacroOriginCityId(originCityId);
-        journey.setMacroDestinationCityId(destinationCityId);
-
-        RouteTrace macroTrace = null;
-        long macroStartTime = System.currentTimeMillis();
-
-        if ("FLOYD_WARSHALL".equalsIgnoreCase(primaryAlgorithmMacro)) {
-            macroTrace = floydWarshallService.computeAllPairs(logisticsGraph, originCityId, destinationCityId);
-            journey.setMacroAlgorithmUsed("FLOYD_WARSHALL");
+        // Macro Phase Calculation
+        long macroStart = System.currentTimeMillis();
+        RouteTrace macroTrace;
+        if ("FLOYD_WARSHALL".equalsIgnoreCase(macroAlgo)) {
+            macroTrace = floydWarshallService.computeAllPairs(logisticsGraph, originId, destId);
         } else {
-            macroTrace = bellmanFordService.compute(logisticsGraph, originCityId, destinationCityId);
-            journey.setMacroAlgorithmUsed("BELLMAN_FORD");
+            macroTrace = bellmanFordService.compute(logisticsGraph, originId, destId);
         }
+        state.setMacroComputationTimeMs(System.currentTimeMillis() - macroStart);
+        state.setMacroRoute(macroTrace.getPath());
+        state.setMacroTotalDistance(macroTrace.getTotalDistance());
+        state.setMacroNodesExplored(macroTrace.getNodesExplored());
+        state.setMacroCurrentStepIndex(0);
+        state.setMacroDistanceTraveled(0.0);
 
-        journey.setMacroComputationTimeMs(System.currentTimeMillis() - macroStartTime);
-        journey.setMacroRoute(macroTrace.getPath());
-        journey.setMacroTotalDistance(macroTrace.getTotalDistance());
-        journey.setMacroNodesExplored(macroTrace.getPath().size());
-        journey.setCurrentPhase(EndToEndJourneyState.JourneyPhase.IN_MACRO_TRANSIT);
-        journey.setStatusMessage("📦 Inter-city transit: " + primaryAlgorithmMacro + " route calculated");
+        // Micro Phase Setup
+        String cityCode = getCityCode(destId);
+        LocalDeliveryStop warehouse = localDeliveryService.getWarehouseForCity(cityCode);
+        state.setMicroWarehouse(warehouse);
 
-        // ============== PHASE 2: MICRO ROUTING (INTRA-CITY) ==============
-        // Create warehouse node for Pune (destination city)
-        LocalDeliveryStop puneWarehouse = new LocalDeliveryStop();
-        puneWarehouse.setId("warehouse-" + destinationCityId);
-        puneWarehouse.setName("Pune Central Warehouse (Node " + destinationCityId + ")");
-        puneWarehouse.setLatitude(18.5204);
-        puneWarehouse.setLongitude(73.8567);
-        puneWarehouse.setType("warehouse");
-
-        journey.setMicroWarehouse(puneWarehouse);
-        journey.setMicroDeliveryAddresses(deliveryAddresses);
-
-        // Calculate optimal route for local delivery
-        long microStartTime = System.currentTimeMillis();
-
-        List<LocalDeliveryStop> optimalRoute = localDeliveryService.calculateOptimalRoute(
-                "PUNE",
-                puneWarehouse,
-                deliveryAddresses,
-                secondaryAlgorithmMicro
+        long microStart = System.currentTimeMillis();
+        List<LocalDeliveryStop> optimalMicroRoute = localDeliveryService.calculateOptimalRoute(
+                cityCode, warehouse, deliveryAddresses, microAlgo
         );
+        state.setMicroComputationTimeMs(System.currentTimeMillis() - microStart);
+        state.setMicroOptimalRoute(optimalMicroRoute);
+        state.setMicroTotalDistance(localDeliveryService.calculateTotalDistance(optimalMicroRoute));
+        state.setMicroNodesExplored(optimalMicroRoute.size());
+        state.setMicroCurrentStepIndex(0);
+        state.setMicroDistanceTraveled(0.0);
 
-        journey.setMicroComputationTimeMs(System.currentTimeMillis() - microStartTime);
-        journey.setMicroOptimalRoute(optimalRoute);
-        journey.setMicroTotalDistance(localDeliveryService.calculateTotalDistance(optimalRoute));
-        journey.setMicroAlgorithmUsed(secondaryAlgorithmMicro);
-        journey.setMicroNodesExplored(optimalRoute.size());
-
-        // Calculate initial progress (50% macro + 50% micro split)
-        double macroProgress = 0.0; // Starting at origin
-        double microProgress = 0.0; // Destination not yet reached
-        journey.setOverallProgressPercentage((macroProgress + microProgress) * 100 / 2);
-
-        journey.setUpdatedAtMs(System.currentTimeMillis());
-
-        return journey;
+        state.setCurrentPhase(EndToEndJourneyState.JourneyPhase.IN_MACRO_TRANSIT);
+        state.setStatusMessage("Inter-city transit: " + macroAlgo + " route calculated. " + state.getMacroRoute().size() + " cities en route.");
+        
+        recalculateOverallProgress(state);
+        journeyStore.put(journeyId, state);
+        return state;
     }
 
-    /**
-     * Advances journey one step in macro phase
-     *
-     * @param journey Current journey state
-     * @return Updated journey state with next macro position
-     */
-    public EndToEndJourneyState advanceMacroStep(EndToEndJourneyState journey) {
-        List<Integer> macroRoute = journey.getMacroRoute();
+    public EndToEndJourneyState advanceStep(String journeyId) {
+        EndToEndJourneyState state = journeyStore.get(journeyId);
+        if (state == null) return null;
 
-        if (journey.getMacroCurrentStepIndex() >= macroRoute.size() - 1) {
-            // Macro phase complete, transition to micro
-            journey.setCurrentPhase(EndToEndJourneyState.JourneyPhase.ARRIVED_AT_HUB);
-            journey.setStatusMessage("✓ Package arrived at Pune warehouse. Initiating local delivery.");
-            journey.setMacroDistanceTraveled(journey.getMacroTotalDistance());
-            journey.setMacroCurrentStepIndex(macroRoute.size() - 1);
-        } else {
-            journey.setMacroCurrentStepIndex(journey.getMacroCurrentStepIndex() + 1);
-            // Calculate distance traveled
-            double distancePerStep = journey.getMacroTotalDistance() / (macroRoute.size() - 1);
-            journey.setMacroDistanceTraveled(distancePerStep * journey.getMacroCurrentStepIndex());
-        }
+        if (state.getCurrentPhase() == EndToEndJourneyState.JourneyPhase.IN_MACRO_TRANSIT) {
+            state.setMacroCurrentStepIndex(state.getMacroCurrentStepIndex() + 1);
+            
+            // Simplified distance increment
+            double progress = (double) state.getMacroCurrentStepIndex() / (state.getMacroRoute().size() - 1);
+            state.setMacroDistanceTraveled(state.getMacroTotalDistance() * Math.min(1.0, progress));
 
-        recalculateOverallProgress(journey);
-        journey.setUpdatedAtMs(System.currentTimeMillis());
-        return journey;
-    }
+            if (state.getMacroCurrentStepIndex() >= state.getMacroRoute().size() - 1) {
+                state.setCurrentPhase(EndToEndJourneyState.JourneyPhase.ARRIVED_AT_HUB);
+                state.setStatusMessage("Package arrived at destination hub. Starting local delivery.");
+            } else {
+                int currentCityId = state.getMacroRoute().get(state.getMacroCurrentStepIndex());
+                state.setStatusMessage("In transit: Arrived at city node " + currentCityId);
+            }
+        } else if (state.getCurrentPhase() == EndToEndJourneyState.JourneyPhase.ARRIVED_AT_HUB) {
+            state.setCurrentPhase(EndToEndJourneyState.JourneyPhase.IN_MICRO_TRANSIT);
+            state.setMicroCurrentStepIndex(0);
+            state.setMicroDistanceTraveled(0.0);
+            state.setStatusMessage("Local delivery initiated in destination city.");
+        } else if (state.getCurrentPhase() == EndToEndJourneyState.JourneyPhase.IN_MICRO_TRANSIT) {
+            state.setMicroCurrentStepIndex(state.getMicroCurrentStepIndex() + 1);
+            
+            double progress = (double) state.getMicroCurrentStepIndex() / (state.getMicroOptimalRoute().size() - 1);
+            state.setMicroDistanceTraveled(state.getMicroTotalDistance() * Math.min(1.0, progress));
 
-    /**
-     * Advances journey one step in micro phase
-     *
-     * @param journey Current journey state
-     * @return Updated journey state with next micro position
-     */
-    public EndToEndJourneyState advanceMicroStep(EndToEndJourneyState journey) {
-        List<LocalDeliveryStop> microRoute = journey.getMicroOptimalRoute();
-
-        if (journey.getMicroCurrentStepIndex() >= microRoute.size() - 1) {
-            // Micro phase complete
-            journey.setCurrentPhase(EndToEndJourneyState.JourneyPhase.DELIVERED);
-            journey.setStatusMessage("✓ Order delivered! Journey complete.");
-            journey.setMicroDistanceTraveled(journey.getMicroTotalDistance());
-            journey.setMicroCurrentStepIndex(microRoute.size() - 1);
-            journey.setOverallProgressPercentage(100.0);
-        } else {
-            journey.setMicroCurrentStepIndex(journey.getMicroCurrentStepIndex() + 1);
-            // Calculate distance traveled
-            double distancePerStep = journey.getMicroTotalDistance() / (microRoute.size() - 1);
-            journey.setMicroDistanceTraveled(distancePerStep * journey.getMicroCurrentStepIndex());
-
-            if (journey.getMicroCurrentStepIndex() >= 1) {
-                journey.setCurrentPhase(EndToEndJourneyState.JourneyPhase.IN_MICRO_TRANSIT);
+            if (state.getMicroCurrentStepIndex() >= state.getMicroOptimalRoute().size() - 1) {
+                state.setCurrentPhase(EndToEndJourneyState.JourneyPhase.DELIVERED);
+                state.setStatusMessage("✅ All deliveries complete. Van returned to warehouse.");
+            } else {
+                state.setStatusMessage("Delivering: Stop " + state.getMicroCurrentStepIndex() + " of " + (state.getMicroOptimalRoute().size() - 1));
             }
         }
 
-        recalculateOverallProgress(journey);
-        journey.setUpdatedAtMs(System.currentTimeMillis());
-        return journey;
+        recalculateOverallProgress(state);
+        state.setUpdatedAtMs(System.currentTimeMillis());
+        journeyStore.put(journeyId, state);
+        return state;
     }
 
-    /**
-     * Recalculates overall progress as weighted combination of macro and micro phases
-     * Macro: 0-50% of overall progress
-     * Micro: 50-100% of overall progress
-     */
-    private void recalculateOverallProgress(EndToEndJourneyState journey) {
-        double macroPhaseProgress = 0.0;
-        if (journey.getMacroTotalDistance() > 0) {
-            macroPhaseProgress = Math.min(1.0, journey.getMacroDistanceTraveled() / journey.getMacroTotalDistance());
-        }
+    public void recalculateOverallProgress(EndToEndJourneyState state) {
+        double macroContrib = ((double) state.getMacroCurrentStepIndex() / (state.getMacroRoute().size() - 1 + 1)) * 40; // Adjusted for 1-based index roughly
+        if (state.getMacroCurrentStepIndex() >= state.getMacroRoute().size() - 1) macroContrib = 40.0;
 
-        double microPhaseProgress = 0.0;
-        if (journey.getCurrentPhase() != EndToEndJourneyState.JourneyPhase.IN_MACRO_TRANSIT &&
-            journey.getCurrentPhase() != EndToEndJourneyState.JourneyPhase.INITIATED) {
-            if (journey.getMicroTotalDistance() > 0) {
-                microPhaseProgress = Math.min(1.0, journey.getMicroDistanceTraveled() / journey.getMicroTotalDistance());
-            }
+        double microContrib = 0;
+        if (state.getMicroOptimalRoute() != null && !state.getMicroOptimalRoute().isEmpty()) {
+            microContrib = ((double) state.getMicroCurrentStepIndex() / (state.getMicroOptimalRoute().size() - 1)) * 60;
         }
-
-        // Weighted: 40% macro + 60% micro
-        double overallProgress = (macroPhaseProgress * 0.4) + (microPhaseProgress * 0.6);
-        journey.setOverallProgressPercentage(Math.min(100.0, overallProgress * 100));
+        double total = macroContrib + microContrib;
+        state.setOverallProgressPercentage(Math.min(100.0, total));
     }
 
-    /**
-     * Gets audit data for AlgorithmAuditPanel
-     */
-    public Map<String, Object> getAuditData(EndToEndJourneyState journey) {
+    public Map<String, Object> getAuditData(String journeyId) {
+        EndToEndJourneyState journey = journeyStore.get(journeyId);
+        if (journey == null) return null;
+
         Map<String, Object> audit = new LinkedHashMap<>();
-
-        audit.put("journeyPhase", journey.getCurrentPhase().name());
+        audit.put("currentPhase", journey.getCurrentPhase().name());
         audit.put("statusMessage", journey.getStatusMessage());
+        
+        Map<String, Object> macro = new LinkedHashMap<>();
+        macro.put("algorithm", journey.getMacroAlgorithmUsed());
+        macro.put("distance", journey.getMacroTotalDistance());
+        macro.put("macroDistanceTraveled", journey.getMacroDistanceTraveled());
+        macro.put("macroTotalDistance", journey.getMacroTotalDistance());
+        macro.put("computationMs", journey.getMacroComputationTimeMs());
+        macro.put("nodesExplored", journey.getMacroNodesExplored());
+        macro.put("stepIndex", journey.getMacroCurrentStepIndex());
+        macro.put("totalSteps", journey.getMacroRoute().size());
+        audit.put("macro", macro);
 
-        // Macro phase audit
-        Map<String, Object> macroAudit = new LinkedHashMap<>();
-        macroAudit.put("algorithm", journey.getMacroAlgorithmUsed());
-        macroAudit.put("type", "MACRO (Inter-City)");
-        macroAudit.put("distanceTraveled", String.format("%.2f km", journey.getMacroDistanceTraveled()));
-        macroAudit.put("totalDistance", String.format("%.2f km", journey.getMacroTotalDistance()));
-        macroAudit.put("executionTimeMs", journey.getMacroComputationTimeMs());
-        macroAudit.put("nodesExplored", journey.getMacroNodesExplored());
-        audit.put("macroPhase", macroAudit);
+        Map<String, Object> micro = new LinkedHashMap<>();
+        micro.put("algorithm", journey.getMicroAlgorithmUsed());
+        micro.put("distance", journey.getMicroTotalDistance());
+        micro.put("microDistanceTraveled", journey.getMicroDistanceTraveled());
+        micro.put("microTotalDistance", journey.getMicroTotalDistance());
+        micro.put("computationMs", journey.getMicroComputationTimeMs());
+        micro.put("stopsCompleted", journey.getMicroCurrentStepIndex());
+        micro.put("totalStops", journey.getMicroOptimalRoute().size());
+        audit.put("micro", micro);
 
-        // Micro phase audit
-        Map<String, Object> microAudit = new LinkedHashMap<>();
-        microAudit.put("algorithm", journey.getMicroAlgorithmUsed());
-        microAudit.put("type", "MICRO (Intra-City)");
-        microAudit.put("distanceTraveled", String.format("%.2f km", journey.getMicroDistanceTraveled()));
-        microAudit.put("totalDistance", String.format("%.2f km", journey.getMicroTotalDistance()));
-        microAudit.put("executionTimeMs", journey.getMicroComputationTimeMs());
-        microAudit.put("nodesExplored", journey.getMicroNodesExplored());
-        audit.put("microPhase", microAudit);
-
-        audit.put("overallProgress", String.format("%.1f%%", journey.getOverallProgressPercentage()));
-
+        audit.put("overallProgress", journey.getOverallProgressPercentage());
         return audit;
     }
 
-    /**
-     * Gets current position for macro visualization (city node ID)
-     */
-    public int getCurrentMacroNodeId(EndToEndJourneyState journey) {
-        List<Integer> route = journey.getMacroRoute();
-        int index = journey.getMacroCurrentStepIndex();
-        if (index >= 0 && index < route.size()) {
-            return route.get(index);
+    public EndToEndJourneyState getJourney(String journeyId) {
+        EndToEndJourneyState state = journeyStore.get(journeyId);
+        if (state == null) {
+            throw new NoSuchElementException("Journey not found: " + journeyId);
         }
-        return journey.getMacroDestinationCityId();
+        return state;
     }
 
-    /**
-     * Gets current position for micro visualization (coordinates)
-     */
-    public LocalDeliveryStop getCurrentMicroLocation(EndToEndJourneyState journey) {
-        List<LocalDeliveryStop> route = journey.getMicroOptimalRoute();
-        int index = journey.getMicroCurrentStepIndex();
-        if (index >= 0 && index < route.size()) {
-            return route.get(index);
-        }
-        return journey.getMicroWarehouse();
+    public int getCurrentMacroNodeId(String journeyId) {
+        EndToEndJourneyState state = getJourney(journeyId);
+        return state.getMacroRoute().get(state.getMacroCurrentStepIndex());
+    }
+
+    public LocalDeliveryStop getCurrentMicroLocation(String journeyId) {
+        EndToEndJourneyState state = getJourney(journeyId);
+        return state.getMicroOptimalRoute().get(state.getMicroCurrentStepIndex());
+    }
+
+    private String getCityCode(int nodeId) {
+        return switch (nodeId) {
+            case 0 -> "DEL";
+            case 1 -> "AGR";
+            case 2 -> "JAI";
+            case 3 -> "MUM";
+            case 4 -> "PUN";
+            case 5 -> "BLR";
+            case 6 -> "HYD";
+            case 7 -> "CHN";
+            case 8 -> "KOL";
+            default -> "NAG";
+        };
     }
 }

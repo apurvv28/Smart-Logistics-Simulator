@@ -42,7 +42,7 @@ export default function IntraCityDeliveryPage() {
     try {
       const response = await axios.post(`${API_BASE}/local-delivery/calculate-city-route`, {
         cityId: cityId,
-        numberOfStops: 12,
+        numberOfStops: 4,
         algorithmType: 'AStar' // Requesting A* as shown in the screenshot audit panel
       });
       if (response.data.status === 'success') {

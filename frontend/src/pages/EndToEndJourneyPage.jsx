@@ -1,6 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader, MapPin, Activity, CheckCircle, Truck } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Loader2, 
+  MapPin, 
+  Activity, 
+  CheckCircle, 
+  Truck, 
+  Navigation, 
+  Package, 
+  ChevronRight,
+  TrendingUp,
+  Settings,
+  Zap,
+  Clock,
+  RotateCcw
+} from 'lucide-react';
 import axios from 'axios';
 import AlgorithmAuditPanel from '../components/AlgorithmAuditPanel';
 import IntraCityMapSimulator from '../components/IntraCityMapSimulator';
@@ -11,497 +26,381 @@ const API_BASE = 'http://localhost:8081/api';
 /**
  * PHASE 4: END-TO-END COMPLETE JOURNEY
  * 
- * Combines macro (inter-city) and micro (intra-city) routing demonstrating:
- * 1. Macro Phase: Inter-city Hub-to-Hub transit (0-40% Progress)
- * 2. Micro Phase: Last-mile delivery within city (40-100% Progress)
- * 3. Audit: Comparative algorithmic analysis
+ * Orchestrates the full lifecycle:
+ * 1. Macro (Inter-City Network)
+ * 2. Arrived at Hub (Transition)
+ * 3. Micro (Local Road Delivery)
+ * 4. Delivered (Completion)
  */
 export default function EndToEndJourneyPage() {
   const navigate = useNavigate();
 
-  // Journey phase state
-  const [journeyPhase, setJourneyPhase] = useState('SETUP'); // SETUP, MACRO, MICRO, COMPLETE
-  const [journeyId, setJourneyId] = useState(null);
+  // State
+  const [journeyPhase, setJourneyPhase] = useState('SETUP'); 
   const [journeyState, setJourneyState] = useState(null);
-  const [auditData, setAuditData] = useState(null);
-  const [overallProgress, setOverallProgress] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('VISUALIZATION'); // VISUALIZATION or AUDIT
 
-  // Algorithm selection
+  // Controls
   const [macroAlgorithm, setMacroAlgorithm] = useState('BELLMAN_FORD');
   const [microAlgorithm, setMicroAlgorithm] = useState('DIJKSTRA');
 
-  // Macro phase state
-  const [macroRouting, setMacroRouting] = useState(null);
-  const [macroProgress, setMacroProgress] = useState(0);
-
-  // Micro phase state
-  const [microRoute, setMicroRoute] = useState([]);
-  const [microProgress, setMicroProgress] = useState(0);
-  const [microAnimating, setMicroAnimating] = useState(false);
-
-  // Loading/Error states
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
-  const [isOfflineMode, setIsOfflineMode] = useState(false);
-
-  // Constants
-  const MACRO_WEIGHT = 0.4;
-  const MICRO_WEIGHT = 0.6;
-
-  // Mock Graph Data for NetworkVisualizer
-  const MOCK_GRAPH = {
-    nodes: [
-      { id: 1, name: 'Warehouse-1 (Nagpur)', type: 'WAREHOUSE' },
-      { id: 2, name: 'Hub-North (Delhi)', type: 'HUB' },
-      { id: 3, name: 'Hub-South (Bengaluru)', type: 'HUB' },
-      { id: 4, name: 'Hub-West (Mumbai)', type: 'HUB' },
-      { id: 5, name: 'Hub-East (Kolkata)', type: 'HUB' },
-      { id: 8, name: 'Delivery Hub (Pune)', type: 'HUB' }
-    ],
-    edges: [
-      { from: 1, to: 2, distanceKm: 1000 },
-      { from: 1, to: 4, distanceKm: 800 },
-      { from: 4, to: 8, distanceKm: 150 },
-      { from: 2, to: 8, distanceKm: 1450 },
-      { from: 3, to: 8, distanceKm: 850 },
-      { from: 5, to: 8, distanceKm: 1600 }
-    ]
-  };
-
-  const PUNE_WAREHOUSE = {
-    id: 'warehouse',
-    name: 'Pune Local Warehouse',
-    latitude: 18.5204,
-    longitude: 73.8567,
-    address: 'Kalyani Nagar, Pune'
-  };
+  // Hardcoded destinations for demo (Matches LogisticsGraph nodes)
+  const ORIGIN_CITY_ID = 0; // Delhi
+  const DEST_CITY_ID = 4;   // Pune
 
   const SAMPLE_DELIVERY_STOPS = [
-    { id: 'stop-1', name: 'Shivaji Nagar', address: 'Pune 411005', latitude: 18.5523, longitude: 73.8479, type: 'delivery' },
-    { id: 'stop-2', name: 'Koregaon Park', address: 'Pune 411001', latitude: 18.5347, longitude: 73.8787, type: 'delivery' },
-    { id: 'stop-3', name: 'Viman Nagar', address: 'Pune 411014', latitude: 18.5672, longitude: 73.9125, type: 'delivery' },
-    { id: 'stop-4', name: 'Hadapsar', address: 'Pune 411013', latitude: 18.5183, longitude: 73.9288, type: 'delivery' }
+    { id: 'stop-1', name: 'Kalyani Nagar', address: 'Pune, MH', latitude: 18.5477, longitude: 73.9033, type: 'delivery' },
+    { id: 'stop-2', name: 'Viman Nagar', address: 'Pune, MH', latitude: 18.5679, longitude: 73.9143, type: 'delivery' },
+    { id: 'stop-3', name: 'Hadapsar', address: 'Pune, MH', latitude: 18.5089, longitude: 73.9260, type: 'delivery' },
+    { id: 'stop-4', name: 'Koregaon Park', address: 'Pune, MH', latitude: 18.5362, longitude: 73.8899, type: 'delivery' }
   ];
 
-  // Manual return to warehouse added to route
-  const MICRO_ROUTE_WITH_RETURN = [...SAMPLE_DELIVERY_STOPS, PUNE_WAREHOUSE];
-
-  /**
-   * Initiate full end-to-end journey
-   */
   const initiateJourney = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      const response = await axios.post(`${API_BASE}/end-to-end/initiate-journey`, {
-        originCityId: 2,
-        destinationCityId: 8,
-        primaryAlgorithmMacro: macroAlgorithm,
-        secondaryAlgorithmMicro: microAlgorithm,
+      const res = await axios.post(`${API_BASE}/end-to-end/initiate-journey`, {
+        originCityId: ORIGIN_CITY_ID,
+        destinationCityId: DEST_CITY_ID,
+        macroAlgorithm: macroAlgorithm,
+        microAlgorithm: microAlgorithm,
         deliveryAddresses: SAMPLE_DELIVERY_STOPS
       });
 
-      if (response.data.status === 'success') {
-        processInitiatedJourney(response.data.journey, response.data.journeyId);
-        setIsOfflineMode(false);
+      if (res.data.status === 'success') {
+        setJourneyState(res.data.journey);
+        setJourneyPhase(res.data.journey.currentPhase);
       }
     } catch (err) {
-      console.warn('Backend unavailable, using national offline journey mode:', err.message);
-      setIsOfflineMode(true);
-      const mockJourney = {
-        macroRoute: [2, 8],
-        macroOriginCityId: 2,
-        macroDestinationCityId: 8,
-        macroTotalDistance: 1450,
-        microOptimalRoute: [PUNE_WAREHOUSE, ...SAMPLE_DELIVERY_STOPS, PUNE_WAREHOUSE],
-        microTotalDistance: 45.2,
-        currentPhase: 'INITIATED',
-        macroAlgorithmUsed: macroAlgorithm,
-        microAlgorithmUsed: microAlgorithm,
-        macroComputationTimeMs: 12,
-        microComputationTimeMs: 8,
-        macroNodesExplored: 6,
-        microNodesExplored: 4
-      };
-      processInitiatedJourney(mockJourney, 'offline-' + Date.now());
+      setError('System Error: Could not synchronize with simulation engine.');
     } finally {
       setLoading(false);
     }
   };
 
-  const processInitiatedJourney = (journey, id) => {
-    setJourneyId(id);
-    setJourneyState(journey);
-    setAuditData(journey);
-    setJourneyPhase('MACRO');
-    setMacroProgress(0);
-    setOverallProgress(0);
-    
-    setMacroRouting({
-      route: journey.macroRoute || [2, 8],
-      startCity: MOCK_GRAPH.nodes.find(n => n.id === 2),
-      endCity: MOCK_GRAPH.nodes.find(n => n.id === 8),
-      distance: journey.macroTotalDistance
-    });
-
-    setMicroRoute(journey.microOptimalRoute || [PUNE_WAREHOUSE, ...SAMPLE_DELIVERY_STOPS, PUNE_WAREHOUSE]);
-    setSuccessMessage('✓ Journey initiated! Simulating inter-city transit...');
-  };
-
-  /**
-   * Simulate Macro Phase Progress and Automatic Transition
-   */
-  useEffect(() => {
-    let interval;
-    if (journeyPhase === 'MACRO') {
-      interval = setInterval(() => {
-        setMacroProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setTimeout(() => advanceToMicro(), 1000);
-            return 100;
-          }
-          return prev + 2;
-        });
-      }, 50);
+  const advanceStep = async () => {
+    if (!journeyState) return;
+    try {
+      setLoading(true);
+      const res = await axios.post(`${API_BASE}/end-to-end/advance-step/${journeyState.journeyId}`);
+      if (res.data.status === 'success') {
+        const newState = res.data.journey;
+        setJourneyState(newState);
+        setJourneyPhase(newState.currentPhase);
+      }
+    } catch (err) {
+      setError('Transit Error: Synchronization lost.');
+    } finally {
+      setLoading(false);
     }
-    return () => clearInterval(interval);
-  }, [journeyPhase]);
-
-  // Update Overall Progress
-  useEffect(() => {
-    if (journeyPhase === 'MACRO') {
-      setOverallProgress((macroProgress / 100) * (MACRO_WEIGHT * 100));
-    } else if (journeyPhase === 'MICRO') {
-      setOverallProgress((MACRO_WEIGHT * 100) + (microProgress / 100) * (MICRO_WEIGHT * 100));
-    } else if (journeyPhase === 'COMPLETE') {
-      setOverallProgress(100);
-    }
-  }, [macroProgress, microProgress, journeyPhase]);
-
-  const advanceToMicro = () => {
-    setJourneyPhase('MICRO');
-    setSuccessMessage('✓ Arrived at Hub! Starting Micro (last-mile) delivery...');
   };
 
   const handleReset = () => {
     setJourneyPhase('SETUP');
-    setJourneyId(null);
     setJourneyState(null);
-    setAuditData(null);
-    setOverallProgress(0);
-    setMacroProgress(0);
-    setMicroProgress(0);
-    setMicroAnimating(false);
     setError(null);
-    setSuccessMessage(null);
   };
 
-  /**
-   * ProgressBar Component
-   */
-  const GlobalProgressBar = () => (
-    <div className="bg-white border-t border-amber-200 p-4 shadow-lg sticky bottom-0 z-30">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">
-            Overall Progress: {Math.round(overallProgress)}%
-          </span>
-          <div className="flex gap-4">
-            <div className="flex items-center gap-1 text-[10px] text-blue-600 font-bold">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div> MACRO (40%)
+  // Auto-progress timer for demonstration
+  useEffect(() => {
+    let timer;
+    if (journeyState && 
+        journeyPhase !== 'SETUP' && 
+        journeyPhase !== 'DELIVERED' && 
+        !loading) {
+      timer = setTimeout(() => {
+        advanceStep();
+      }, 3000); // 3 seconds per step
+    }
+    return () => clearTimeout(timer);
+  }, [journeyState, journeyPhase, loading]);
+
+  // Phase View Components
+  if (journeyPhase === 'SETUP') {
+    return (
+      <div className="w-full flex-1 flex flex-col items-center justify-center p-8">
+        <div className="max-w-4xl w-full">
+          <div className="bg-white rounded-[3rem] shadow-2xl p-12 border border-black/5 relative overflow-hidden text-center">
+            {/* Background elements */}
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+            
+            <div className="flex justify-center mb-8">
+              <div className="w-20 h-20 bg-indigo-50 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-100/50 rotate-3">
+                <Navigation className="w-10 h-10 text-indigo-600" />
+              </div>
             </div>
-            <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full"></div> MICRO (60%)
+
+            <h2 className="text-5xl font-black text-slate-900 mb-4 tracking-tighter">Initialize Journey</h2>
+            <p className="text-slate-500 font-bold mb-12 max-w-lg mx-auto leading-relaxed">
+              Configure the end-to-end supply chain protocol. We'll simulate a package moving from Delhi to Pune, then performing last-mile deliveries.
+            </p>
+
+            <div className="grid md:grid-cols-2 gap-8 mb-12">
+              <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-black/5 text-left transition-all hover:shadow-lg">
+                <div className="flex items-center gap-3 mb-6">
+                  <Activity className="w-5 h-5 text-indigo-600" />
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Macro Phase Protocol</span>
+                </div>
+                <select 
+                  value={macroAlgorithm}
+                  onChange={(e) => setMacroAlgorithm(e.target.value)}
+                  className="w-full bg-white border border-black/5 rounded-2xl px-6 py-4 font-black text-slate-800 shadow-sm focus:ring-4 focus:ring-indigo-100 outline-none transition-all cursor-pointer"
+                >
+                  <option value="BELLMAN_FORD">Bellman-Ford</option>
+                  <option value="FLOYD_WARSHALL">Floyd-Warshall</option>
+                </select>
+                <p className="mt-4 text-[11px] font-bold text-slate-400 leading-relaxed px-1">
+                  Optimizes inter-city transit across the India hub network graph.
+                </p>
+              </div>
+
+              <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-black/5 text-left transition-all hover:shadow-lg">
+                <div className="flex items-center gap-3 mb-6">
+                  <Zap className="w-5 h-5 text-emerald-600" />
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Micro Phase Protocol</span>
+                </div>
+                <select 
+                   value={microAlgorithm}
+                   onChange={(e) => setMicroAlgorithm(e.target.value)}
+                   className="w-full bg-white border border-black/5 rounded-2xl px-6 py-4 font-black text-slate-800 shadow-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all cursor-pointer"
+                >
+                  <option value="DIJKSTRA">Dijkstra</option>
+                  <option value="A_STAR">A*</option>
+                </select>
+                <p className="mt-4 text-[11px] font-bold text-slate-400 leading-relaxed px-1">
+                  Optimizes last-mile stops within the Pune city road network.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={initiateJourney}
+              disabled={loading}
+              className="group relative w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl tracking-tight shadow-2xl transition-all active:scale-95 disabled:opacity-70"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-10 transition-opacity rounded-[2rem]"></div>
+              {loading ? (
+                <div className="flex items-center justify-center gap-4">
+                  <Loader2 className="w-6 h-6 animate-spin" /> Synchronizing Engines...
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-4">
+                  Launch Complete Journey <ChevronRight className="w-6 h-6" />
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Active Simulation View
+  return (
+    <div className="w-full flex-1 flex flex-col pt-0 px-0 md:px-0 bg-transparent">
+      {/* Top Status Bar */}
+      <div className="flex items-center justify-between px-10 py-8 bg-white/40 backdrop-blur-md border border-black/5 rounded-[3rem] mb-10 mx-6">
+        <div className="flex items-center gap-6">
+          <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-indigo-100">
+            {journeyPhase === 'IN_MACRO_TRANSIT' ? <Truck className="w-8 h-8 animate-pulse" /> : <Package className="w-8 h-8" />}
+          </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-black text-slate-900 tracking-tighter">Journey: {journeyState?.journeyId}</h1>
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                journeyPhase === 'DELIVERED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'
+              }`}>
+                {journeyPhase.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <p className="text-slate-500 font-bold mt-1">{journeyState?.statusMessage}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={handleReset}
+            className="flex items-center gap-2 px-6 py-3 bg-white border border-black/5 rounded-2xl font-black text-sm text-slate-400 hover:text-slate-900 transition-all shadow-sm"
+          >
+            <RotateCcw className="w-4 h-4" /> Reset
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col lg:flex-row gap-10 px-6 pb-10 min-h-0">
+        {/* Main Simulation Window */}
+        <div className="flex-[2] flex flex-col gap-6 min-h-0">
+          <div className="flex-1 bg-white rounded-[3rem] shadow-2xl border border-black/5 relative overflow-hidden">
+            {journeyPhase === 'IN_MACRO_TRANSIT' ? (
+              <div className="w-full h-full p-4">
+                 <NetworkGraphVisualizer 
+                   activePath={journeyState?.macroRoute}
+                   currentNodeId={journeyState?.macroRoute[journeyState?.macroCurrentStepIndex]}
+                 />
+              </div>
+            ) : (
+              <div className="w-full h-full">
+                <IntraCityMapSimulator 
+                   warehouse={journeyState?.microWarehouse}
+                   deliveryStops={journeyState?.microDeliveryAddresses}
+                   route={journeyState?.microOptimalRoute}
+                   totalDistance={journeyState?.microTotalDistance}
+                   autoSimulate={true}
+                />
+              </div>
+            )}
+            
+            {/* Phase Overlay */}
+            <div className="absolute top-8 right-8 z-20 flex gap-3">
+              <div className={`px-5 py-2 rounded-2xl border backdrop-blur-md font-black text-xs shadow-xl transition-all ${
+                journeyPhase === 'IN_MACRO_TRANSIT' 
+                  ? 'bg-indigo-600 text-white border-indigo-500' 
+                  : 'bg-white/80 text-slate-400 border-black/5'
+              }`}>
+                MACRO (Inter-City)
+              </div>
+              <div className={`px-5 py-2 rounded-2xl border backdrop-blur-md font-black text-xs shadow-xl transition-all ${
+                (journeyPhase === 'IN_MICRO_TRANSIT' || journeyPhase === 'ARRIVED_AT_HUB')
+                  ? 'bg-emerald-600 text-white border-emerald-500' 
+                  : 'bg-white/80 text-slate-400 border-black/5'
+              }`}>
+                MICRO (Last-Mile)
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Strip */}
+          <div className="bg-white px-10 py-8 rounded-[2.5rem] border border-black/5 shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Lifecycle Progress</span>
+              <span className="text-sm font-black text-slate-900 tracking-tighter">{Math.round(journeyState?.overallProgressPercentage || 0)}% Complete</span>
+            </div>
+            <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner p-0.5">
+              <div 
+                className="h-full bg-indigo-600 transition-all duration-1000 rounded-full flex items-center justify-end px-2"
+                style={{ width: `${Math.min(journeyState?.overallProgressPercentage || 0, 40)}%` }}
+              >
+                {journeyState?.overallProgressPercentage > 20 && <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />}
+              </div>
+              <div 
+                className="h-full bg-emerald-500 transition-all duration-1000 rounded-full ml-1"
+                style={{ width: `${Math.max(0, (journeyState?.overallProgressPercentage || 0) - 40)}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-4 text-[10px] font-black uppercase tracking-tighter text-slate-300">
+               <span className="text-indigo-600">Phase 1: Inter-Hub Network</span>
+               <span className={journeyPhase === 'DELIVERED' ? 'text-emerald-600' : ''}>Phase 2: Local Fulfillment</span>
             </div>
           </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner flex">
-          <div 
-            className="bg-blue-500 h-full transition-all duration-300" 
-            style={{ width: `${Math.min(overallProgress, 40)}%` }}
-          />
-          <div 
-            className="bg-emerald-500 h-full transition-all duration-300" 
-            style={{ width: `${Math.max(0, overallProgress - 40)}%` }}
-          />
-        </div>
-        <div className="mt-2 text-center">
-           <p className="text-xs font-medium text-amber-700 italic">
-             {journeyPhase === 'MACRO' ? '🚚 Inter-city transit in progress...' : 
-              journeyPhase === 'MICRO' ? '🚲 Last-mile deliveries active...' : 
-              '✅ Journey Complete'}
-           </p>
+
+        {/* Sidebar Analytics */}
+        <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-hide">
+           {/* Phase Specific Stats */}
+           <div className="bg-white p-8 rounded-[3rem] border border-black/5 shadow-2xl">
+              <div className="flex items-center gap-3 mb-8">
+                 <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-slate-900" />
+                 </div>
+                 <h3 className="text-xl font-black text-slate-900 tracking-tighter">Engine Audit</h3>
+              </div>
+
+              <div className="space-y-6">
+                 <div>
+                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                       <span>Macro Engine</span>
+                       <span className="text-indigo-600">{journeyState?.macroAlgorithmUsed}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                       <div className="p-4 bg-slate-50 rounded-2xl border border-black/5">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Time</p>
+                          <p className="text-lg font-black text-slate-900">{journeyState?.macroComputationTimeMs}ms</p>
+                       </div>
+                       <div className="p-4 bg-slate-50 rounded-2xl border border-black/5">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Dist</p>
+                          <p className="text-lg font-black text-slate-900">{Math.round(journeyState?.macroTotalDistance || 0)}km</p>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div>
+                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                       <span>Micro Engine</span>
+                       <span className="text-emerald-600">{journeyState?.microAlgorithmUsed}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                       <div className="p-4 bg-slate-50 rounded-2xl border border-black/5">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Time</p>
+                          <p className="text-lg font-black text-slate-900">{journeyState?.microComputationTimeMs}ms</p>
+                       </div>
+                       <div className="p-4 bg-slate-50 rounded-2xl border border-black/5">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Dist</p>
+                          <p className="text-lg font-black text-slate-900">{journeyState?.microTotalDistance?.toFixed(1)}km</p>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+           </div>
+
+           {/* Event Log */}
+           <div className="flex-1 bg-white p-8 rounded-[3rem] border border-black/5 shadow-2xl flex flex-col min-h-0 overflow-hidden">
+              <div className="flex items-center gap-3 mb-8 flex-shrink-0">
+                 <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-slate-900" />
+                 </div>
+                 <h3 className="text-xl font-black text-slate-900 tracking-tighter">Timeline</h3>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-4 scrollbar-hide">
+                 {/* Macro Steps */}
+                 {journeyState?.macroRoute.slice(0, journeyState.macroCurrentStepIndex + 1).map((nodeId, idx) => (
+                    <div key={`macro-${idx}`} className="flex items-start gap-4">
+                       <div className="mt-1 w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center border border-indigo-200">
+                          <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />
+                       </div>
+                       <div>
+                          <p className="text-xs font-black text-slate-900">Reached Hub Node {nodeId}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Macro Phase • Transit</p>
+                       </div>
+                    </div>
+                 ))}
+
+                 {/* Hub Transition */}
+                 {journeyState?.currentPhase !== 'IN_MACRO_TRANSIT' && journeyState?.currentPhase !== 'INITIATED' && (
+                    <div className="flex items-start gap-4">
+                       <div className="mt-1 w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center border border-emerald-200">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                       </div>
+                       <div>
+                          <p className="text-xs font-black text-emerald-600">Arrived at {journeyState.microWarehouse?.name}</p>
+                          <p className="text-[10px] font-bold text-emerald-400 uppercase">Transition • Unloading</p>
+                       </div>
+                    </div>
+                 )}
+
+                 {/* Micro Steps */}
+                 {journeyState?.microCurrentStepIndex > 0 && journeyState.microOptimalRoute.slice(1, journeyState.microCurrentStepIndex + 1).map((stop, idx) => (
+                    <div key={`micro-${idx}`} className="flex items-start gap-4 animate-in fade-in slide-in-from-left-2 duration-500">
+                       <div className="mt-1 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg">
+                          <CheckCircle className="w-3.5 h-3.5 text-white" />
+                       </div>
+                       <div>
+                          <p className="text-xs font-black text-slate-900">Delivered to {stop.name}</p>
+                          <p className="text-[10px] font-bold text-emerald-600 uppercase">Micro Phase • Last-Mile</p>
+                       </div>
+                    </div>
+                 ))}
+                 
+                 {journeyPhase === 'DELIVERED' && (
+                    <div className="bg-emerald-50 p-6 rounded-[2rem] border border-emerald-100 text-center animate-bounce">
+                       <CheckCircle className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                       <p className="text-sm font-black text-emerald-700">Journey Complete</p>
+                    </div>
+                 )}
+              </div>
+           </div>
         </div>
       </div>
     </div>
   );
-
-  // Setup phase
-  if (journeyPhase === 'SETUP') {
-    return (
-      <div className="w-full h-screen bg-gradient-to-br from-amber-50 to-orange-50 flex flex-col">
-        <div className="bg-white border-b border-amber-200 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/')} className="p-2 hover:bg-amber-100 rounded-lg transition">
-              <ArrowLeft className="w-5 h-5 text-amber-600" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-amber-900">End-to-End LogiSim Journey</h1>
-              <p className="text-sm text-amber-600">Phase 4: Multi-tier Network Integration</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="max-w-2xl w-full">
-            <div className="bg-white rounded-2xl shadow-2xl p-8 border border-amber-100">
-              <div className="flex justify-center mb-6">
-                <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
-                  <Truck className="w-8 h-8 text-amber-600" />
-                </div>
-              </div>
-              
-              <h2 className="text-3xl font-bold text-amber-900 mb-2 text-center">
-                Initialize Journey
-              </h2>
-              <p className="text-sm text-amber-600 text-center mb-8">
-                Configure hierarchical routing algorithms for the nationwide supply chain.
-              </p>
-
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <label className="block text-xs font-bold text-blue-900 mb-3 uppercase">
-                      Macro (Hub-to-Hub)
-                    </label>
-                    <select
-                      value={macroAlgorithm}
-                      onChange={(e) => setMacroAlgorithm(e.target.value)}
-                      className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
-                    >
-                      <option value="BELLMAN_FORD">Bellman-Ford</option>
-                      <option value="FLOYD_WARSHALL">Floyd-Warshall</option>
-                    </select>
-                  </div>
-
-                  <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                    <label className="block text-xs font-bold text-emerald-900 mb-3 uppercase">
-                      Micro (Last-Mile)
-                    </label>
-                    <select
-                      value={microAlgorithm}
-                      onChange={(e) => setMicroAlgorithm(e.target.value)}
-                      className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm bg-white"
-                    >
-                      <option value="DIJKSTRA">Dijkstra</option>
-                      <option value="A_STAR">A*</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-                  <h4 className="text-xs font-bold text-amber-900 mb-2 uppercase flex items-center gap-2">
-                    <MapPin className="w-3 h-3"/> Shipment Details
-                  </h4>
-                  <ul className="text-xs text-amber-800 space-y-1 ml-5 list-disc">
-                    <li><strong>Origin:</strong> Delhi Warehouse</li>
-                    <li><strong>Transit Hub:</strong> Pune Logistics Center</li>
-                    <li><strong>Destinations:</strong> 4 Local Pune Addresses</li>
-                  </ul>
-                </div>
-
-                <button
-                  onClick={initiateJourney}
-                  disabled={loading}
-                  className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-transform active:scale-95 ${
-                    loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:shadow-amber-200/50'
-                  }`}
-                >
-                  {loading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <Loader className="w-5 h-5 animate-spin" /> Calculating System...
-                    </div>
-                  ) : '▶ BATTLE-TEST SYSTEM'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Macro phase (Inter-City Network Graph)
-  if (journeyPhase === 'MACRO') {
-    return (
-      <div className="w-full h-screen bg-slate-950 flex flex-col">
-        <div className="bg-slate-900/50 border-b border-slate-800 p-4 z-40 backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
-                <Activity className="w-6 h-6 text-blue-400 animate-pulse" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-100">Macro Phase: Inter-City Topology</h1>
-                <p className="text-xs text-blue-400 font-medium">Nagpur Hub → Delhi Hub → Pune Central</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-               <div className="text-right">
-                  <p className="text-[10px] text-slate-400 uppercase font-bold">Protocol</p>
-                  <p className="text-sm text-blue-400 font-bold">{macroAlgorithm}</p>
-               </div>
-               <button 
-                 onClick={advanceToMicro}
-                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
-               >
-                 Skip to Micro <ArrowLeft className="w-3 h-3 rotate-180" />
-               </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-hidden relative flex flex-col lg:flex-row p-4 gap-4">
-           {/* Progress overlay for Macro */}
-           <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 bg-blue-600/90 text-white px-4 py-1 rounded-full text-[10px] font-bold shadow-xl border border-blue-400/50">
-             TRANSIT STATUS: {Math.round(macroProgress)}%
-           </div>
-
-           <div className="flex-1 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl relative">
-              <NetworkGraphVisualizer 
-                nodes={MOCK_GRAPH.nodes}
-                edges={MOCK_GRAPH.edges}
-                activePath={[2, 8]}
-              />
-           </div>
-
-           <div className="w-full lg:w-96 flex flex-col gap-4 overflow-y-auto">
-              <div className="glass p-6 rounded-3xl border border-slate-800">
-                <h3 className="text-sm font-bold text-slate-100 mb-4 uppercase tracking-tighter">Routing Metrics</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-end border-b border-slate-800 pb-2">
-                    <span className="text-[10px] text-slate-400 font-bold">DISTANCE</span>
-                    <span className="text-lg text-blue-400 font-mono font-bold">1,450 km</span>
-                  </div>
-                  <div className="flex justify-between items-end border-b border-slate-800 pb-2">
-                    <span className="text-[10px] text-slate-400 font-bold">ETD</span>
-                    <span className="text-lg text-blue-400 font-mono font-bold">14.2 hrs</span>
-                  </div>
-                </div>
-              </div>
-              <AlgorithmAuditPanel auditData={auditData} />
-           </div>
-        </div>
-        <GlobalProgressBar />
-      </div>
-    );
-  }
-
-  // Micro phase (Map Simulation)
-  if (journeyPhase === 'MICRO') {
-    return (
-      <div className="w-full h-screen bg-slate-50 flex flex-col">
-        <div className="bg-white border-b border-emerald-200 p-4 z-40 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center border border-emerald-200">
-                <MapPin className="w-6 h-6 text-emerald-600" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-emerald-950">Micro Phase: Last-Mile Topology</h1>
-                <p className="text-xs text-emerald-600 font-bold">Pune Local Delivery | 4 Stops + Return</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-6">
-               <div className="text-right">
-                  <p className="text-[10px] text-emerald-800 uppercase font-black">Algorithm</p>
-                  <p className="text-sm text-emerald-600 font-black">{microAlgorithm}</p>
-               </div>
-               <div className="h-8 w-[1px] bg-emerald-200"></div>
-               <button 
-                 onClick={() => setJourneyPhase('COMPLETE')}
-                 className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-md hover:shadow-emerald-200"
-               >
-                 Finalize Journey
-               </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-hidden relative">
-          <IntraCityMapSimulator
-            warehouse={PUNE_WAREHOUSE}
-            deliveryStops={SAMPLE_DELIVERY_STOPS}
-            route={microRoute}
-            totalDistance={journeyState?.microTotalDistance || 45.2}
-            onSimulationStart={() => setMicroAnimating(true)}
-            onSimulationEnd={() => {
-              setMicroAnimating(false);
-              setMicroProgress(100);
-            }}
-            animationSpeed={2000}
-          />
-        </div>
-        <GlobalProgressBar />
-      </div>
-    );
-  }
-
-  // Journey complete
-  if (journeyPhase === 'COMPLETE') {
-    return (
-      <div className="w-full h-screen bg-white flex flex-col">
-        <div className="bg-white border-b border-slate-200 p-4">
-          <div className="flex items-center gap-3">
-            <button onClick={handleReset} className="p-2 hover:bg-slate-100 rounded-lg transition text-slate-600">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h1 className="text-xl font-black text-slate-900 tracking-tighter">MISSION SUMMARY</h1>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-8 bg-slate-50">
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-3xl p-10 shadow-2xl border border-slate-200 text-center relative overflow-hidden mb-8">
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-500"></div>
-              <div className="inline-block p-4 bg-emerald-100 rounded-full mb-6">
-                <CheckCircle className="w-12 h-12 text-emerald-600" />
-              </div>
-              <h2 className="text-4xl font-black text-slate-900 mb-2">Delivery Complete!</h2>
-              <p className="text-slate-500 font-medium mb-10 italic">System optimized across 1,500+ km within 1.2s</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                <div className="p-6 rounded-2xl bg-blue-50 border border-blue-100">
-                  <p className="text-[10px] font-black text-blue-800 uppercase mb-4 tracking-widest">Macro Phase</p>
-                  <p className="text-2xl font-black text-blue-900 mb-1">{journeyState?.macroTotalDistance?.toFixed(0) || 1450} km</p>
-                  <p className="text-xs text-blue-600 font-bold">{macroAlgorithm}</p>
-                </div>
-                <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100">
-                  <p className="text-[10px] font-black text-emerald-800 uppercase mb-4 tracking-widest">Micro Phase</p>
-                  <p className="text-2xl font-black text-emerald-900 mb-1">{journeyState?.microTotalDistance?.toFixed(1) || 45.2} km</p>
-                  <p className="text-xs text-emerald-600 font-bold">{microAlgorithm}</p>
-                </div>
-                <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
-                  <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Efficiency</p>
-                  <p className="text-2xl font-black text-white mb-1">98.4%</p>
-                  <p className="text-xs text-slate-400 font-bold">Route Optimized</p>
-                </div>
-              </div>
-
-              <div className="mt-10 pt-10 border-t border-slate-100 flex gap-4 justify-center">
-                 <button onClick={handleReset} className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-sm hover:translate-y-[-2px] transition-all shadow-xl">
-                   START NEW MISSION
-                 </button>
-              </div>
-            </div>
-            
-            <AlgorithmAuditPanel auditData={auditData} />
-          </div>
-        </div>
-      </div>
-    );
-  }
 }
