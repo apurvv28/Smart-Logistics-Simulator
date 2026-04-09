@@ -70,7 +70,7 @@ function AutoFitBounds({ coordinates }) {
   return null;
 }
 
-const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance, autoSimulate = false }) => {
+const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance, autoSimulate = false, externalIsPaused = false }) => {
   const [isSimulating, setIsSimulating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0); 
@@ -164,7 +164,7 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
 
   // Master Animation Loop
   useEffect(() => {
-    if (!isSimulating || isPaused || isDwellTime || roadPath.length === 0) return;
+    if (!isSimulating || isPaused || externalIsPaused || isDwellTime || roadPath.length === 0) return;
 
     if (currentSegmentIndex >= roadPath.length - 1) {
       setStatusMessage('✅ Mission complete. Van returned to hub.');
