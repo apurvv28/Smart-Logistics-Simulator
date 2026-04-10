@@ -8,16 +8,16 @@ import com.logicore.engine.dto.LocalDeliveryResponse;
 import java.util.*;
 
 /**
- * LocalDeliveryService - Handles multi-city delivery routing (inter-warehouse or intra-region logistics)
+ * LocalDeliveryService - Handles intra-city last-mile delivery routing
  *
  * Algorithm: Greedy Nearest-Neighbor Heuristic for Traveling Salesman Problem
  * - Starts at warehouse (origin hub)
  * - At each step, visit nearest unvisited stop (using Haversine distance)
- * - Scale: Works for both intra-city (4 stops, 25km range) and multi-city (10+ cities, 1000+ km range)
+ * - Scale: Optimized for residential and commercial delivery stops (4-15 stops)
  * - Continue until all stops visited, return to warehouse
  *
  * Complexity: O(n²) where n = number of delivery stops
- * Accuracy: 80-90% optimal for practical scenarios (vs true optimal: NP-hard)
+ * Accuracy: 80-90% optimal for practical scenarios
  *
  * Uses Haversine formula for accurate great-circle distance calculation on Earth's surface
  */
@@ -211,17 +211,16 @@ public class LocalDeliveryService {
 
     /**
      * Calculates optimal delivery route using Greedy TSP algorithm
-     * Handles both intra-city (4-5 stops, 20-30km) and multi-city (10+ cities, 1000+ km) scenarios
+     * Handles city-specific logistics (4-12 stops, 20-50km range)
      *
      * Algorithm: Greedy Nearest-Neighbor
      * - Start at warehouse
      * - Always move to nearest unvisited stop
      * - Uses Haversine distance for accurate GPS calculations
-     * - Works across continent-scale distances (uses real GPS coordinates)
      *
-     * @param city City identifier (informational, not used in algorithm)
+     * @param city City identifier
      * @param warehouse Starting point and return point
-     * @param deliveryAddresses Stops to visit (can be intra-city neighborhoods or multi-city hubs)
+     * @param deliveryAddresses Stops to visit
      * @param algorithm Algorithm type (currently GREEDY only)
      * @return Ordered list: [warehouse, stop1, stop2, ..., warehouse]
      */

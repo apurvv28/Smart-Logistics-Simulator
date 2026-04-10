@@ -5,6 +5,7 @@ import SimulationLandingPage from './pages/SimulationLandingPage';
 import InterCitySimulationPage from './pages/InterCitySimulationPage';
 import IntraCityDeliveryPage from './pages/IntraCityDeliveryPage';
 import EndToEndJourneyPage from './pages/EndToEndJourneyPage';
+import { SimulationProvider } from './context/SimulationContext';
 
 function TopNav() {
   const location = useLocation();
@@ -34,18 +35,20 @@ export default function App() {
   const campaign = useCampaignState();
 
   return (
-    <BrowserRouter>
-      <div className="story-shell min-h-screen">
-        <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-8 md:py-8">
-          <TopNav />
-          <Routes>
-            <Route path="/" element={<SimulationLandingPage />} />
-            <Route path="/inter-city-simulation" element={<InterCitySimulationPage campaign={campaign} />} />
-            <Route path="/intra-city-simulation" element={<IntraCityDeliveryPage campaign={campaign} />} />
-            <Route path="/end-to-end-simulation" element={<EndToEndJourneyPage campaign={campaign} />} />
-          </Routes>
+    <SimulationProvider>
+      <BrowserRouter>
+        <div className="story-shell min-h-screen">
+          <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-8 md:py-8">
+            <TopNav />
+            <Routes>
+              <Route path="/" element={<SimulationLandingPage />} />
+              <Route path="/inter-city-simulation" element={<InterCitySimulationPage campaign={campaign} />} />
+              <Route path="/intra-city-simulation" element={<IntraCityDeliveryPage campaign={campaign} />} />
+              <Route path="/end-to-end-simulation" element={<EndToEndJourneyPage campaign={campaign} />} />
+            </Routes>
+          </div>
         </div>
-      </div>
-    </BrowserRouter>
+      </BrowserRouter>
+    </SimulationProvider>
   );
 }

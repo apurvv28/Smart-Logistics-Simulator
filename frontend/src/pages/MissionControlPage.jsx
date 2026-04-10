@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useCampaignState } from '../hooks/useCampaignState';
+import { useSimulationContext } from '../context/SimulationContext';
+import { CITY_DATA } from '../data/cityData';
 
 function InputField({ label, value, onChange, type = 'text', placeholder }) {
   return (
@@ -239,6 +241,7 @@ function ChronicleTimelinePanel({ events, orders }) {
 }
 
 export default function MissionControlPage() {
+  const { setLastInterCityDestination } = useSimulationContext();
   const {
     orderState,
     setOrderState,
@@ -307,6 +310,13 @@ export default function MissionControlPage() {
 
   const wrappedHandleProcessRoute = async () => {
     await actions.handleProcessRoute();
+    
+    // Auto-detect destination city from address to persist for Phase 4
+    const dest = orderState.deliveryAddress?.toLowerCase() || '';
+    const cityEntry = Object.values(CITY_DATA).find(c => 
+      dest.includes(c.name.toLowerCase()) || dest.includes(c.id.toLowerCase())
+    ) || CITY_DATA.PUN; // Default to Pune if not clear
+
     // Add warehouse picked and dispatched events
     setTimelineEvents(prev => [...prev,
       {
@@ -320,6 +330,24 @@ export default function MissionControlPage() {
         description: `Route calculated using ${orderState.routeData?.routeAlgorithm || 'A_STAR'}. Distance: ${orderState.routeData?.distanceKm || 1412} km`
       }
     ]);
+
+    // Save to localStorage for Phase 4 Bridge
+    localStorage.setItem('logicore_phase1', JSON.stringify({
+      originCity: 'Delhi',
+      originNodeId: 0,
+      destinationCity: cityEntry.name,
+      destinationNodeId: cityEntry.nodeId,
+      deliveryAddress: orderState.deliveryAddress,
+      customerName: orderState.customerName
+    }));
+
+    // Persist for Phase 4 (Context fallback)
+    setLastInterCityDestination({
+      cityId: cityEntry.id,
+      cityName: cityEntry.name,
+      nodeId: cityEntry.nodeId,
+      algorithmUsed: orderState.routeData?.routeAlgorithm || 'Dijkstra'
+    });
   };
 
   const wrappedHandleCompareAlgorithms = async () => {

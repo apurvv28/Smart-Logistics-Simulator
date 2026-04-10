@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, MapPin, Loader2 } from 'lucide-react';
 import IntraCityMapSimulator from '../components/IntraCityMapSimulator';
+import { useSimulationContext } from '../context/SimulationContext';
+import { CITY_DATA } from '../data/cityData';
 import axios from 'axios';
 
 const API_BASE = 'http://localhost:8081/api';
 
 export default function IntraCityDeliveryPage() {
   const navigate = useNavigate();
+  const { setLastIntraCityData } = useSimulationContext();
   const [cities, setCities] = useState([]);
   const [selectedCityId, setSelectedCityId] = useState('');
   const [simulationData, setSimulationData] = useState(null);
@@ -16,23 +19,13 @@ export default function IntraCityDeliveryPage() {
 
   // Fetch available cities on mount
   useEffect(() => {
-    const fetchCities = async () => {
-      try {
-        const response = await axios.get(`${API_BASE}/local-delivery/cities`);
-        if (response.data.status === 'success') {
-          const sortedCities = response.data.cities.sort((a, b) => a.cityName.localeCompare(b.cityName));
-          setCities(sortedCities);
-          // Pre-select Nagpur (NAG) if available, else first city
-          const initialCity = sortedCities.find(c => c.cityId === 'NAG') || sortedCities[0];
-          if (initialCity) {
-            handleCitySelect(initialCity.cityId);
-          }
-        }
-      } catch (err) {
-        setError('Failed to load cities network. Backend may be offline.');
-      }
+    const loadCities = () => {
+      const sortedCities = Object.values(CITY_DATA).sort((a, b) => a.name.localeCompare(b.name));
+      setCities(sortedCities);
+      // Pre-select Nagpur (NAG)
+      handleCitySelect('NAG');
     };
-    fetchCities();
+    loadCities();
   }, []);
 
   const handleCitySelect = async (cityId) => {
@@ -40,13 +33,38 @@ export default function IntraCityDeliveryPage() {
     setLoading(true);
     setError(null);
     try {
+      const city = CITY_DATA[cityId];
+      if (!city) throw new Error("City data not found");
+
       const response = await axios.post(`${API_BASE}/local-delivery/calculate-city-route`, {
         cityId: cityId,
         numberOfStops: 4,
-        algorithmType: 'AStar' // Requesting A* as shown in the screenshot audit panel
+        warehouse: city.warehouse,
+        deliveryStops: city.deliveryAddresses,
+        algorithmType: 'AStar'
       });
+
       if (response.data.status === 'success') {
-        setSimulationData(response.data);
+        const data = response.data;
+        setSimulationData(data);
+        
+        // Save to localStorage for Phase 4 Bridge
+        localStorage.setItem('logicore_phase2', JSON.stringify({
+          cityId: city.id,
+          cityName: city.name,
+          nodeId: city.nodeId,
+          warehouse: city.warehouse,
+          deliveryAddresses: city.deliveryAddresses
+        }));
+
+        // Write to SimulationContext (fallback)
+        setLastIntraCityData({
+          cityId: city.id,
+          cityName: city.name,
+          nodeId: city.nodeId,
+          warehouse: city.warehouse,
+          deliveryAddresses: city.deliveryAddresses
+        });
       }
     } catch (err) {
       setError('Could not calculate delivery route for the selected city.');
@@ -77,8 +95,8 @@ export default function IntraCityDeliveryPage() {
             className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 px-6 py-2.5 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer disabled:opacity-50 transition-all font-bold text-sm"
           >
             {cities.map(city => (
-              <option key={city.cityId} value={city.cityId}>
-                {city.cityName} ({city.cityId})
+              <option key={city.id} value={city.id}>
+                {city.name} ({city.id})
               </option>
             ))}
           </select>

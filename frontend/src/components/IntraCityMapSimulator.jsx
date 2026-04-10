@@ -31,31 +31,81 @@ function createStopMarker(isDelivered, isCurrent, index) {
   });
 }
 
-const createVanIcon = (bearing = 0) => L.divIcon({
+// 1. BIKE SVG - Side View Sports Bike with Animations
+const BIKE_SVG = `
+  <div style="width: 80px; height: 52px; display: flex; align-items: center; justify-content: center; position: relative;">
+    <style>
+      @keyframes wheel-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes speed-line {
+        0% { transform: translateX(0); opacity: 0; }
+        50% { opacity: 0.8; }
+        100% { transform: translateX(-15px); opacity: 0; }
+      }
+      .wheel { animation: wheel-spin 0.4s linear infinite; transform-origin: center; }
+      .speed-line { animation: speed-line 0.6s ease-out infinite; }
+    </style>
+    
+    <svg width="80" height="52" viewBox="0 0 80 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Speed Lines -->
+      <line x1="10" y1="20" x2="2" y2="20" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.1s" />
+      <line x1="8" y1="30" x2="0" y2="30" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.3s" />
+      <line x1="12" y1="40" x2="4" y2="40" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.5s" />
+
+      <!-- Back Wheel -->
+      <g class="wheel">
+        <circle cx="25" cy="40" r="9" stroke="#1e1b4b" stroke-width="3" fill="#334155" />
+        <line x1="25" y1="31" x2="25" y2="49" stroke="#94a3b8" stroke-width="1" />
+        <line x1="16" y1="40" x2="34" y2="40" stroke="#94a3b8" stroke-width="1" />
+      </g>
+
+      <!-- Front Wheel -->
+      <g class="wheel">
+        <circle cx="65" cy="40" r="9" stroke="#1e1b4b" stroke-width="3" fill="#334155" />
+        <line x1="65" y1="31" x2="65" y2="49" stroke="#94a3b8" stroke-width="1" />
+        <line x1="56" y1="40" x2="74" y2="40" stroke="#94a3b8" stroke-width="1" />
+      </g>
+
+      <!-- Bike Body -->
+      <path d="M25 40L35 25H60L65 40" stroke="#4338ca" stroke-width="6" stroke-linecap="round" />
+      <path d="M30 25L45 15H65L60 25" fill="#4338ca" />
+      
+      <!-- Engine/Details -->
+      <rect x="35" y="28" width="20" height="10" rx="2" fill="#1e293b" />
+      
+      <!-- Delivery Box -->
+      <rect x="15" y="10" width="18" height="15" rx="2" fill="#f59e0b" />
+      <rect x="18" y="13" width="12" height="2" fill="#d97706" />
+
+      <!-- Rider Body -->
+      <path d="M48 25C48 25 45 15 55 12C65 9 68 18 68 18L60 25H48Z" fill="#1e1b4b" />
+      <!-- Rider Helmet -->
+      <circle cx="60" cy="12" r="5" fill="#0f172a" />
+      <rect x="61" y="11" width="4" height="2" rx="1" fill="#475569" />
+    </svg>
+  </div>
+`;
+
+const createRiderIcon = (bearing = 0) => L.divIcon({
   className: '',
   html: `
     <div style="
-      transform: rotate(${bearing - 90}deg); 
+      transform: rotate(${bearing}deg); 
       transform-origin: center center;
-      width: 40px; 
-      height: 24px;
+      width: 80px; 
+      height: 52px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.1s linear;
-      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+      transition: transform 0.2s ease-out;
     ">
-      <svg width="40" height="24" viewBox="0 0 52 32">
-        <rect x="1" y="8" width="36" height="18" rx="3" fill="#6366f1"/>
-        <rect x="37" y="11" width="13" height="15" rx="3" fill="#4f46e5"/>
-        <rect x="39" y="12" width="9" height="9" rx="2" fill="#e0f2fe"/>
-        <circle cx="13" cy="27" r="4" fill="#1e293b"/>
-        <circle cx="43" cy="27" r="4" fill="#1e293b"/>
-      </svg>
+      ${BIKE_SVG}
     </div>
   `,
-  iconSize: [40, 24],
-  iconAnchor: [20, 24],
+  iconSize: [80, 52],
+  iconAnchor: [40, 46],
 });
 
 // Map Auto-Center Component (Runs ONCE when route loads)
@@ -131,7 +181,7 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
     setCurrentSegmentIndex(0);
     setDeliveredStops(new Set());
     setCompletedPath([roadPath[0]]);
-    setStatusMessage('🚚 Van departing from hub...');
+    setStatusMessage('🚚 Agent departing from hub...');
   };
 
   const resetSimulation = () => {
@@ -167,7 +217,7 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
     if (!isSimulating || isPaused || externalIsPaused || isDwellTime || roadPath.length === 0) return;
 
     if (currentSegmentIndex >= roadPath.length - 1) {
-      setStatusMessage('✅ Mission complete. Van returned to hub.');
+      setStatusMessage('✅ Mission complete. Agent returned to hub.');
       setIsSimulating(false);
       return;
     }
@@ -288,37 +338,26 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
             </Marker>
           ))}
 
-          {/* Van Marker */}
-          <Marker position={vanPos} icon={createVanIcon(vanBearing)} zIndexOffset={1000} />
+          {/* Rider Marker */}
+          <Marker position={vanPos} icon={createRiderIcon(vanBearing)} zIndexOffset={1000} />
         </MapContainer>
 
-        {/* 5-SECOND DWELL COUNTDOWN OVERLAY ON MAP */}
+        {/* 5-SECOND DELIVERY OVERLAY */}
         {isDwellTime && (
-          <div style={{
-            position: 'absolute',
-            bottom: '120px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1000,
-            background: 'rgba(15,15,25,0.92)',
-            border: '1px solid #4ade80',
-            borderRadius: '12px',
-            padding: '12px 24px',
-            color: 'white',
-            textAlign: 'center',
-            pointerEvents: 'none',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)'
-          }}>
-            <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px' }}>
-              📦 DELIVERING
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] animate-in zoom-in duration-300">
+            <div className="bg-white/95 backdrop-blur-md rounded-[2.5rem] p-10 shadow-2xl border border-emerald-100 text-center scale-110">
+              <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ring-8 ring-emerald-50">
+                <CheckCircle2 className="w-10 h-10 text-emerald-600 animate-bounce" />
+              </div>
+              <h4 className="text-xs font-black text-emerald-600 uppercase tracking-[0.2em] mb-2">Package Delivered</h4>
+              <h3 className="text-3xl font-black text-slate-900 tracking-tighter mb-4">
+                {targetStop.name}
+              </h3>
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resuming in {dwellCountdown}s</span>
+              </div>
             </div>
-            <div style={{ fontSize: '13px', fontWeight: 600, margin: '4px 0' }}>
-              {targetStop.name}
-            </div>
-            <div style={{ fontSize: '36px', fontWeight: 800, color: '#facc15', lineHeight: 1 }}>
-              {dwellCountdown}
-            </div>
-            <div style={{ fontSize: '10px', color: '#9ca3af' }}>seconds</div>
           </div>
         )}
 
