@@ -331,7 +331,7 @@ export default function MissionControlPage() {
       }
     ]);
 
-    // Save to localStorage for Phase 4 Bridge
+    // Save to localStorage for Phase 3 Bridge
     localStorage.setItem('logicore_phase1', JSON.stringify({
       originCity: 'Delhi',
       originNodeId: 0,
@@ -341,7 +341,7 @@ export default function MissionControlPage() {
       customerName: orderState.customerName
     }));
 
-    // Persist for Phase 4 (Context fallback)
+    // Persist for Phase 3 (Context fallback)
     setLastInterCityDestination({
       cityId: cityEntry.id,
       cityName: cityEntry.name,

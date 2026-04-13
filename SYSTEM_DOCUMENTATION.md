@@ -1,73 +1,88 @@
-# LogiCore: Advanced Multi-Phase Logistics Simulation System
-
-## 🚀 System Overview
-LogiCore is a high-performance logistics simulation engine designed to visualize and optimize the lifecycle of a package—from national hub transit to last-mile delivery. The system bridges complex graph theory algorithms with real-world geospatial data to provide a seamless, end-to-end logistics narrative.
+# LogiCore: Advanced Multi-Phase Logistics System
+**The Definitive Blueprint for National Hub Transit & Last-Mile Delivery**
 
 ---
 
-## 🛠 Tech Stack
+## 🚀 1. System Vision & Overview
+LogiCore is an advanced logistics simulation engine designed to visualize and optimize the lifecycle of a package—from national hub transit to last-mile customer delivery. The system is engineered as a **three-stage evolutionary pipeline**, bridging abstract graph theory with high-fidelity geospatial navigation.
 
-### Backend (The "Engine")
-- **Language**: Java 17+
-- **Framework**: Spring Boot 3.3.5
-- **Communication**: REST API & WebSockets (STOMP) for real-time telemetry.
-- **Algorithms**: 
-  - **Inter-City**: Dijkstra, Bellman-Ford, Floyd-Warshall, A*.
-  - **Intra-City**: Greedy Nearest-Neighbor (TSP), Haversine Distance Calculation.
-- **Geospatial**: OSRM (Open Source Routing Machine) integration for road-accurate geometry.
-
-### Frontend (The "Mission Control")
-- **Framework**: React 18 (Vite)
-- **Styling**: Vanilla CSS with modern "Aesthetic Premium" principles (Glassmorphism, Dark Modes, Vibrant Gradients).
-- **Icons**: Lucide-React.
-- **Maps**: Leaflet.js with React-Leaflet and OpenStreetMap tiles.
-- **State Management**: 
-  - **Phase Bridge**: `localStorage` used for cross-page data persistence between simulation nodes.
-  - **Dashboards**: Custom React hooks (`useCampaignState`, `useEndToEndState`) for animation and API synchronization.
+### Core Value Proposition
+- **Algorithmic Transparency**: Real-time visualization of pathfinding logic.
+- **Geospatial Fidelity**: Integration with OSRM for road-accurate urban navigation.
+- **Seamless Integration**: A unified data bridge between inter-city and intra-city operations.
 
 ---
 
-## 📑 Phase Documentation
+## 🛠 2. Technical Architecture & Tech Stack
 
-### Phase 1: National Inter-City Network
-**Objective**: Stabilizing the national logistics pipeline and implementing core routing algorithms across Indian hubs.
-- **Features**:
-  - **Order Lifecycle**: Automated creation → Warehouse picking → National routing → Delivery simulation.
-  - **Algorithm Arena**: Compare execution speed and path optimality between Dijkstra and Bellman-Ford.
-  - **WebSocket Telemetry**: Live status updates streamed from the backend to a "Chronicle Timeline."
-- **Visuals**: Abstract SVG-based graph represents the national backbone (Delhi, Mumbai, Pune, etc.).
+### Backend (The Algorithm Engine)
+*   **Core**: Java 17+ / Spring Boot 3.3.5.
+*   **Pathfinding**: Custom-built graph implementations including **Dijkstra**, **Bellman-Ford**, and **A***.
+*   **TSP Solver**: A heuristic-based **Greedy Nearest-Neighbor** approach for optimizing multi-stop city delivery sequences.
+*   **Geo-Services**: OSRM (Open Source Routing Machine) API for fetching road geometry and distance metrics.
+*   **Telemetry**: WebSocket (STOMP) for persistent, low-latency status streaming.
 
-### Phase 2: Last-Mile Delivery (Intra-City)
-**Objective**: Transitioning from abstract hub-to-hub transit to real-world street-level delivery.
-- **Features**:
-  - **City Registry**: Pre-configured data for 30+ major Indian cities including Pune, Mumbai, Delhi, Kolakata, etc.
-  - **Road-Aligned Routing**: Instead of straight lines, the simulator fetches actual road geometry from the OSRM API.
-  - **Animated Rider**: High-fidelity side-view sports bike marker with spinning wheels and speed lines.
-- **Visuals**: High-resolution Leaflet map with multi-stop pins (warehouse + 4 delivery stops).
-
-
-### Phase 4: End-to-End Mission Synchronization
-**Objective**: The "Grand Finale"—bridging Phase 1 and Phase 2 into a single, seamless mission.
-- **Features**:
-  - **Session Intelligence**: Reads data from previous simulation phases (via `localStorage`) to auto-populate the E2E journey.
-  - **Dual-Segment Animation**: Packages first move on the National SVG Graph (Macro Phase), then transition to a detailed Leaflet map (Micro Phase) upon arrival at the destination city.
-  - **Delivery Dwells**: Implementation of 5-second "dwell-time" pauses at each stop with a premium "Package Delivered" overlay.
-  - **Segmented Progress**: A dual-logic progress bar tracking both inter-city transit and local delivery completion.
+### Frontend (Mission Control)
+*   **Core**: React 18 / Vite.
+*   **Mapping**: Leaflet.js with customized tile layers for high-performance geospatial rendering.
+*   **Visualization**: Dynamic SVG graph overlays for the national hub network.
+*   **State Management**: `localStorage` Bridge for cross-phase session persistence.
+*   **Aesthetics**: Vanilla CSS emphasizing **Glassmorphism**, vibrant gradients, and fluid micro-animations.
 
 ---
 
-## ⚙️ Backend Process & Workflow
+## 📑 3. The Three-Phase Logistics Lifecycle
 
-1. **Initialization**: When a journey starts, the backend builds a `LogisticsGraph` from pre-defined nodes and edges representing the Indian road/rail network.
-2. **Pathfinding**: The user selects a "Macro" and "Micro" algorithm. The backend calculates the shortest path between city hubs (National scale) and then optimizes the stop sequence within the target city (Last-mile scale).
-3. **Telemetry Streaming**: During the simulation, the backend publishes STOMP messages over WebSockets at every "step." This includes GPS coordinates, current speed, and status messages.
-4. **Dwell Management**: The backend manages the 5-second dwell timers for deliveries, pausing the packet transit to simulate actual unloading operations.
-5. **Session Bridge**: Front-end captures data from each phase to ensure that if a user routes from Delhi to Pune in Phase 1, Phase 4 automatically starts in Delhi and ends on a Pune city map.
+### Phase 1: Inter-City National Network (Macro Phase)
+**Objective**: Automating the movement of goods between major industrial hubs across India.
+- **Scope**: National-scale logistics involving 30+ primary nodes (Delhi, Mumbai, Kolkata, etc.).
+- **Process Highlights**:
+    - **Dynamic Routing**: Users select origin/destination hubs and compare algorithm performance.
+    - **Network Resilience**: Calculation of shortest paths considering both physical distance and real-time traffic weights.
+    - **Telemetry Feed**: Live tracking of the "National Transit Packet" via an interactive SVG map.
+
+### Phase 2: Intra-City Multi-Stop Distribution (Micro Phase)
+**Objective**: Optimizing the "Last-Mile" distribution within an urban environment.
+- **Unification Note**: This phase consolidates **Multi-City Network** and **Intra-City Delivery** concepts into a single optimized module.
+- **Process Highlights**:
+    - **Multi-Stop TSP**: Packages are distributed from a central warehouse to 4+ delivery stops in a single optimized voyage.
+    - **Road-Accurate Transit**: Markers follow actual road paths (not straight lines) provided by OSRM geometry.
+    - **Agent Animation**: A professional side-view sports bike marker with rolling wheels and speed-line effects.
+    - **Dwell Management**: Simulated 5-second hand-over pauses at each stop with a premium arrival overlay.
+
+### Phase 3: End-to-End Integrated Journey (The Grand Finale)
+**Objective**: Synchronizing national transit and local delivery into a single, uninterrupted mission.
+- **Process Highlights**:
+    - **Session Handshake**: Automatically retrieves the destination hub from Phase 1 and the delivery addresses from Phase 2.
+    - **State Transition**: The UI seamlessly shifts from the National SVG view to the Local Map view upon reaching the destination city hub.
+    - **Synchronized UI**: A unified progress bar tracks the entire journey from the source warehouse (0%) to the final customer doorstep (100%).
+    - **Algorithmic Harmony**: Combines Dijkstra (Inter-city) and Greedy TSP (Intra-city) into a single execution thread.
 
 ---
 
-## 🎨 Design Philosophy
-The system follows a **"Premium Dashboard"** aesthetic:
-- **Rich Gradients**: Use of Indigo, Purple, and Amber to distinguish between different phases of logistics.
-- **Micro-Animations**: Hover-effects, pulse-ring delivery markers, and spinning wheel markers enhance interactive engagement.
-- **Data-Driven**: Every visual element—from the progress bar to the audit panel—is backed by real calculation data from the Spring Boot engine.
+## 🧠 4. Intelligence & Algorithm Arena
+
+| Phase | Algorithm | Primary Responsibility | Technical Strength |
+| :--- | :--- | :--- | :--- |
+| **Phase 1** | **Dijkstra / Bellman-Ford** | Hub-to-Hub Routing | Optimal pathfinding on complex national graphs. |
+| **Phase 2** | **Greedy Nearest-Neighbor** | Multi-Stop Optimization | Efficiency in solving the Traveling Salesman Problem (TSP). |
+| **Phase 3** | **A*** | Heuristic-Guided Navigation | Rapid execution for long-distance transit across multiple nodes. |
+
+---
+
+## ⚡ 5. Data Flow & Persistence Bridge
+
+1.  **Phase 1 Data**: `localStorage.setItem('logicore_phase1', ...)` captures the Origin Hub and Global Algorithm.
+2.  **Phase 2 Data**: `localStorage.setItem('logicore_phase2', ...)` captures the local Warehouse, 4 Delivery Addresses, and the TSP Sequence.
+3.  **Phase 3 Initialization**: The E2E Mission Control reads both keys simultaneously to reconstruct the full journey without requiring user re-input.
+4.  **Real-Time Sync**: Telemetry updates for Phase 3 are managed via a dedicated `LocalDeliveryController` endpoint that simulates the transition from Macro to Micro phases.
+
+---
+
+## 🎨 6. Design Philosophy
+- **Glassmorphism**: High transparency panels with `backdrop-filter` for a modern SaaS aesthetic.
+- **Dynamic Gradients**: Semantic use of color (Indigo for Transit, Amber for Delivery, Emerald for Success).
+- **Interactive Layers**: Multi-layer maps with custom markers and SVG-animated path traces.
+
+---
+*Developed by Antigravity — Smart Logistics Division.*

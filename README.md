@@ -1,59 +1,69 @@
-# LogiCore - High-Performance Network Optimization & Logistics Engine
+# LogiCore - Advanced Network Optimization & Multi-Phase Logistics Engine
 
-Initial implementation based on the attached project brief.
+LogiCore is a professional logistics simulation system built with **Spring Boot** and **React**. It visualizes the entire lifecycle of a package voyage—from national inter-city transit to high-precision urban "last-mile" delivery.
 
-## What Is Implemented
+---
 
-- Java Spring Boot backend scaffold (`backend/`)
-- Core algorithm APIs:
-  - Dijkstra shortest path with min-heap priority queue
-  - Exact TSP solver using Bitmask Dynamic Programming
-  - Tarjan bridge detection for network resilience
-- React + Tailwind frontend starter (`frontend/`) with API test dashboard cards
+## 🚀 Key Simulation Phases
 
-## Project Structure
+The system is structured into **three definitive phases** of logistics evolution:
 
-- `backend/`: Spring Boot API and algorithm engine
-- `frontend/`: Vite React dashboard UI
-- `LogiCore_requirements_extracted.txt`: Text extracted from project PDF for traceability
+### 1. Phase 1: National Inter-City Network
+- **Objective**: Optimize transit between major Indian hubs (Delhi, Mumbai, Bengaluru, etc.).
+- **Tech**: Dijkstra/Bellman-Ford algorithms on a weighted national graph.
+- **Visuals**: Animated SVG hub-and-spoke visualization with real-time telemetry.
 
-## Run Backend
+### 2. Phase 2: Intra-City Last-Mile & Multi-Stop Delivery
+- **Objective**: High-fidelity urban distribution within a specific city.
+- **Unified Logic**: Combines local navigation with multi-stop distribution optimization.
+- **Tech**: Greedy Nearest-Neighbor (TSP) algorithm, OSRM road geometry, and Haversine distance.
+- **Visuals**: Animated side-view bike marker on a Leaflet map with actual road-following behavior.
 
-1. Install Java 17+ and Maven.
-2. Run:
+### 3. Phase 3: End-to-End Mission Journey
+- **Objective**: The synchronized integration of Phase 1 and Phase 2.
+- **Persistence**: Uses a "Session Bridge" (localStorage) to link national routing results directly into the local city delivery map.
+- **Experience**: A seamless transition from the National Macro view to a street-level Micro view.
 
+---
+
+## 🛠 Technology Stack
+
+### Backend
+- **Java 17 / Spring Boot 3.3.5**: Core simulation engine.
+- **Graph Algorithms**: Dijkstra, Bellman-Ford, Floyd-Warshall, and Greedy TSP.
+- **Telemetry**: STOMP over WebSockets for live status streaming.
+- **Data Integration**: External OSRM API for road-accurate GPS coordinate fetching.
+
+### Frontend
+- **React 18 / Vite**: Ultra-fast, modular Mission Control dashboard.
+- **Leaflet.js**: Geospatial rendering for city-scale delivery.
+- **Vanilla CSS**: Premium "Aesthetic Dashboard" design system with glassmorphism and smooth animations.
+- **Lucide-React**: High-resolution iconography.
+
+---
+
+## ⚙️ Quick Start
+
+### 1. Backend
 ```powershell
 cd backend
 mvn spring-boot:run
 ```
+Started at `http://localhost:8081`.
 
-Backend starts at `http://localhost:8080`.
-
-## Run Frontend
-
-1. Install Node.js 18+.
-2. Run:
-
+### 2. Frontend
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
+Started at `http://localhost:5173`.
 
-Frontend starts at `http://localhost:5173`.
+---
 
-## API Endpoints
+## 🔬 Project Documentation
+For a deep dive into the algorithmic implementation, architecture, and design philosophy, refer to:
+👉 **[SYSTEM_DOCUMENTATION.md](./SYSTEM_DOCUMENTATION.md)**
 
-- `POST /api/v1/graph/dijkstra`
-- `POST /api/v1/graph/tsp/exact`
-- `POST /api/v1/graph/bridges`
-
-All sample payloads are preloaded in the frontend dashboard cards.
-
-## Next Build Phases
-
-1. Add persistent storage (MySQL/PostgreSQL + spatial support)
-2. Add AVL/Red-Black index module for location lookup
-3. Integrate Cytoscape graph visualization and step-by-step algorithm playback
-4. Add dynamic rerouting simulation for edge/node failures
-5. Add unit/integration tests and performance benchmarks
+---
+*Developed by Antigravity — Smart Logistics Division.*

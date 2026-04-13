@@ -7,7 +7,7 @@ export default function SimulationLandingPage() {
   const simulations = [
     {
       id: 'inter-city',
-      title: 'Inter-City Network Simulation',
+      title: 'Phase 1: Inter-City Network',
       description: 'Watch packages travel across India through intelligent routing algorithms. Compare Dijkstra, A*, Bellman-Ford, and Floyd-Warshall in real-time.',
       icon: Globe,
       features: [
@@ -22,13 +22,13 @@ export default function SimulationLandingPage() {
     },
     {
       id: 'intra-city',
-      title: 'Intra-City Last-Mile Delivery',
-      description: 'Simulate delivery from warehouse to multiple customer addresses within a single city using OpenStreetMap visualization.',
+      title: 'Phase 2: Intra-City Multi-Stop',
+      description: 'Optimize delivery from a hub to multiple customer addresses within a single city using OSRM and Greedy TSP sequencing.',
       icon: MapPin,
       features: [
-        'Real-world city maps',
-        'Multiple stops',
-        'Optimized routing',
+        'Multi-stop distribution',
+        'TSP optimization',
+        'Road-aligned routing',
         'Animated delivery'
       ],
       color: 'from-emerald-600 to-teal-600',
@@ -38,13 +38,13 @@ export default function SimulationLandingPage() {
     },
     {
       id: 'end-to-end',
-      title: 'End-to-End Complete Journey',
-      description: 'The ultimate simulation combining both macro (inter-city) and micro (last-mile) logistics in one seamless journey.',
+      title: 'Phase 3: End-to-End Journey',
+      description: 'The ultimate simulation bridging Phase 1 (National) and Phase 2 (Local) into one seamless, synchronized mission lifecycle.',
       icon: Route,
       features: [
         'Macro + micro view',
         'Seamless transition',
-        'Algorithm switching',
+        'Persistence bridge',
         'Complete lifecycle'
       ],
       color: 'from-purple-600 to-pink-600',

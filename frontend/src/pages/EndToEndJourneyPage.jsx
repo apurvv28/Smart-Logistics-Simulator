@@ -193,7 +193,7 @@ export default function EndToEndJourneyPage() {
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">Phase 4: Mission Journey</h1>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">Phase 3: Mission Journey</h1>
             <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-1">Live Synchronization Interface</p>
           </div>
         </div>

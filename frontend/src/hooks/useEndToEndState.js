@@ -42,7 +42,7 @@ export function useEndToEndState() {
   }, []);
 
   const initiateJourney = async (macroAlgo, microAlgo) => {
-    console.log('[Phase 4] Initiating Journey: Macro=', macroAlgo, 'Micro=', microAlgo);
+    console.log('[Phase 3] Initiating Journey: Macro=', macroAlgo, 'Micro=', microAlgo);
     setLoading(true);
     setError(null);
     setStatusMessage('Configuring Global Logistics Bridge...');
@@ -54,11 +54,11 @@ export function useEndToEndState() {
       phase1Data = JSON.parse(localStorage.getItem('logicore_phase1') || '{}');
       phase2Data = JSON.parse(localStorage.getItem('logicore_phase2') || '{}');
     } catch(e) {
-      console.warn('[Phase 4] Could not parse localStorage data:', e);
+      console.warn('[Phase 3] Could not parse localStorage data:', e);
     }
 
-    console.log('[Phase 4] Phase1 data:', phase1Data);
-    console.log('[Phase 4] Phase2 data:', phase2Data);
+    console.log('[Phase 3] Phase1 data:', phase1Data);
+    console.log('[Phase 3] Phase2 data:', phase2Data);
 
     // Safely extract node IDs with fallbacks
     const originNodeId = phase1Data.originNodeId ?? phase1Data.sourceNodeId ?? 0;
@@ -68,7 +68,7 @@ export function useEndToEndState() {
     const warehouse         = phase2Data.warehouse         ?? FALLBACK_WAREHOUSE;
     const deliveryAddresses = phase2Data.deliveryAddresses ?? FALLBACK_ADDRESSES;
 
-    console.log('[Phase 4] Origin nodeId:', originNodeId, '→ Dest nodeId:', destNodeId);
+    console.log('[Phase 3] Origin nodeId:', originNodeId, '→ Dest nodeId:', destNodeId);
 
     // Validate we have minimum required data
     if (!warehouse || !warehouse.latitude) {
@@ -86,10 +86,10 @@ export function useEndToEndState() {
         deliveryAddresses:       deliveryAddresses
       };
 
-      console.log('[Phase 4] Sending payload:', payload);
+      console.log('[Phase 3] Sending payload:', payload);
 
       const response = await axios.post(`${API_BASE}/initiate-journey`, payload);
-      console.log('[Phase 4] API Response:', response.data);
+      console.log('[Phase 3] API Response:', response.data);
 
       if (response.data.status === 'success') {
         const state = response.data.journey;
@@ -103,7 +103,7 @@ export function useEndToEndState() {
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.response?.data?.error || err.message;
-      console.error('[Phase 4] Initiation failed:', msg);
+      console.error('[Phase 3] Initiation failed:', msg);
       setError(msg);
       setStatusMessage('Initiation failed');
     } finally {
@@ -157,7 +157,7 @@ export function useEndToEndState() {
           }
         }
       } catch (err) {
-        console.error('[Phase 4] Advance Step Error:', err.message);
+        console.error('[Phase 3] Advance Step Error:', err.message);
       }
     }, 2000);
   };
