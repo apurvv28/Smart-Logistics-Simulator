@@ -189,15 +189,18 @@ public class EndToEndJourneyService {
 
     private String getCityCode(int nodeId) {
         return switch (nodeId) {
-            case 0 -> "DEL";
-            case 1 -> "AGR";
-            case 2 -> "JAI";
-            case 3 -> "MUM";
-            case 4 -> "PUN";
-            case 5 -> "BLR";
-            case 6 -> "HYD";
-            case 7 -> "CHN";
-            case 8 -> "KOL";
+            case 0  -> "DEL";
+            case 1  -> "AGR";
+            case 3  -> "MUM";
+            case 4  -> "PUN";
+            case 6  -> "KOL";
+            case 9  -> "BLR";
+            case 10 -> "HYD";
+            case 12 -> "CHN";
+            case 15 -> "AHM";
+            case 18 -> "JAI";
+            case 21 -> "BHO";
+            case 22 -> "NAG";
             default -> "NAG";
         };
     }

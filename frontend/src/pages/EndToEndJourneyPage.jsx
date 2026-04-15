@@ -14,7 +14,8 @@ import {
   RotateCcw,
   Globe,
   Play,
-  Pause
+  Pause,
+  Truck
 } from 'lucide-react';
 import IntraCityMapSimulator from '../components/IntraCityMapSimulator';
 import { useEndToEndState } from '../hooks/useEndToEndState';
@@ -22,11 +23,18 @@ import { CITY_DATA } from '../data/cityData';
 import 'leaflet/dist/leaflet.css';
 
 const MACRO_NODES = {
-  0: { name: 'Delhi', x: 280, y: 80 },
-  1: { name: 'Agra', x: 310, y: 130 },
-  2: { name: 'Jaipur', x: 220, y: 150 },
-  3: { name: 'Mumbai', x: 200, y: 300 },
-  4: { name: 'Pune', x: 230, y: 330 }
+  0:  { name: 'Delhi', x: 280, y: 70 },
+  15: { name: 'Ahmedabad', x: 160, y: 180 },
+  21: { name: 'Bhopal', x: 280, y: 200 },
+  6:  { name: 'Kolkata', x: 500, y: 210 },
+  18: { name: 'Jaipur', x: 220, y: 130 },
+  1:  { name: 'Agra', x: 310, y: 130 },
+  3:  { name: 'Mumbai', x: 180, y: 310 },
+  4:  { name: 'Pune', x: 210, y: 340 },
+  22: { name: 'Nagpur', x: 320, y: 260 },
+  10: { name: 'Hyderabad', x: 320, y: 370 },
+  9:  { name: 'Bangalore', x: 270, y: 470 },
+  12: { name: 'Chennai', x: 330, y: 490 }
 };
 
 export default function EndToEndJourneyPage() {
@@ -222,12 +230,22 @@ export default function EndToEndJourneyPage() {
                 </div>
                 <div className="flex gap-1.5 h-3">
                   <div className="flex-[7] bg-slate-100 rounded-l-full overflow-hidden border border-slate-200/50 relative">
-                    <div className="h-full bg-blue-500 transition-all duration-1000" style={{ width: `${currentPhase === 'IN_MACRO_TRANSIT' ? 100 : (showMicroPhase ? 100 : 0)}%` }} />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><span className="text-[7px] font-black text-slate-400/60 uppercase">MACRO</span></div>
+                    <div 
+                      className="h-full bg-blue-500 transition-all duration-1000 shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+                      style={{ width: `${Math.min(100, (overallProgress / 40) * 100)}%` }} 
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <span className="text-[7px] font-black text-slate-400/60 uppercase">MACRO HUB</span>
+                    </div>
                   </div>
                   <div className="flex-[3] bg-slate-100 rounded-r-full overflow-hidden border border-slate-200/50 relative">
-                    <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${currentPhase === 'IN_MICRO_TRANSIT' ? ((overallProgress - 70) / 30 * 100) : (overallProgress >= 100 ? 100 : 0)}%` }} />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><span className="text-[7px] font-black text-slate-400/60 uppercase">MICRO</span></div>
+                    <div 
+                      className="h-full bg-emerald-500 transition-all duration-1000 shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
+                      style={{ width: `${overallProgress > 40 ? ((overallProgress - 40) / 60 * 100) : 0}%` }} 
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <span className="text-[7px] font-black text-slate-400/60 uppercase">MICRO LAST-MILE</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -262,11 +280,21 @@ export default function EndToEndJourneyPage() {
         <section className="flex-1 relative flex flex-col bg-slate-100 p-8">
            <div className="w-full h-full bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl overflow-hidden relative">
               {!showMicroPhase ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-[#FAF9F6] p-10">
-                   <svg width="600" height="400" viewBox="0 0 600 400">
-                      {Object.entries(MACRO_NODES).map(([id, node]) => {
-                        const targets = [0,1,2,3,4].filter(t => t != id);
-                        return targets.map(tid => <line key={`${id}-${tid}`} x1={node.x} y1={node.y} x2={MACRO_NODES[tid].x} y2={MACRO_NODES[tid].y} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />);
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#FAF9F6] p-10 relative">
+                   <svg width="600" height="550" viewBox="0 0 600 550">
+                      {Object.keys(MACRO_NODES).map(id => {
+                        const node = MACRO_NODES[id];
+                        const targets = Object.keys(MACRO_NODES).filter(t => t !== id);
+                        return targets.map(tid => (
+                          <line 
+                            key={`${id}-${tid}`} 
+                            x1={node.x} y1={node.y} 
+                            x2={MACRO_NODES[tid].x} y2={MACRO_NODES[tid].y} 
+                            stroke="#e2e8f0" 
+                            strokeWidth="0.5" 
+                            strokeDasharray="2 2" 
+                          />
+                        ));
                       })}
                       {journey?.macroRoute?.slice(0, journey.macroCurrentStepIndex).map((nid, i) => {
                          const nextId = journey.macroRoute[i + 1];
@@ -280,13 +308,32 @@ export default function EndToEndJourneyPage() {
                         const isCurrent = journey?.macroRoute?.[journey.macroCurrentStepIndex] === Number(id);
                         const node = MACRO_NODES[id];
                         return (
-                          <g key={id}>
-                            <circle cx={node.x} cy={node.y} r={isCurrent ? 12 : 6} fill={isCurrent ? "#f59e0b" : "#cbd5e1"} stroke="white" strokeWidth="2" />
-                            <text x={node.x} y={node.y - 15} textAnchor="middle" fill="#64748b" className="text-[9px] font-black uppercase tracking-wider">{cityMatch?.name || node.name}</text>
-                          </g>
-                        );
-                      })}
-                   </svg>
+                            <g key={id}>
+                              <circle cx={node.x} cy={node.y} r={isCurrent ? 12 : 6} fill={isCurrent ? "#f59e0b" : "#cbd5e1"} stroke="white" strokeWidth="2" />
+                              <text x={node.x} y={node.y - 15} textAnchor="middle" fill="#64748b" className="text-[9px] font-black uppercase tracking-wider">{cityMatch?.name || node.name}</text>
+                            </g>
+                          );
+                        })}
+                        
+                        {/* Moving Vehicle */}
+                        {journey?.macroRoute && journey.macroCurrentStepIndex < journey.macroRoute.length && currentPhase === 'IN_MACRO_TRANSIT' && (
+                          (() => {
+                             const nid = journey.macroRoute[journey.macroCurrentStepIndex];
+                             const node = MACRO_NODES[nid] || { x: 300, y: 200 };
+                             return (
+                               <g 
+                                 className="transition-all duration-[2000ms] ease-linear"
+                                 style={{ transform: `translate(${node.x}px, ${node.y}px)` }}
+                               >
+                                  <circle cx="0" cy="0" r="16" fill="#1e1b4b" stroke="#818cf8" strokeWidth="2" className="drop-shadow-lg" />
+                                  <foreignObject x="-10" y="-10" width="20" height="20" className="flex items-center justify-center">
+                                     <Truck className="w-5 h-5 text-indigo-300" />
+                                  </foreignObject>
+                               </g>
+                             );
+                          })()
+                        )}
+                     </svg>
                    <div className="absolute top-8 left-8 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl shadow-sm"><span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">National Hub Network</span></div>
                 </div>
               ) : (
@@ -300,21 +347,6 @@ export default function EndToEndJourneyPage() {
                       externalIsPaused={isPaused}
                    />
                    <div className="absolute top-8 left-8 z-[1000] p-4 bg-emerald-50 border border-emerald-100 rounded-2xl shadow-sm"><span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Local City View</span></div>
-                </div>
-              )}
-
-              {isDelivering && (
-                <div className="absolute inset-0 z-[2000] flex items-center justify-center p-8 bg-black/5 animate-in fade-in zoom-in duration-300">
-                  <div className="w-full max-w-sm bg-white/95 backdrop-blur-md rounded-[2.5rem] p-10 shadow-2xl border border-emerald-100 text-center relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 animate-pulse" />
-                    <div className="relative w-24 h-24 mx-auto mb-8">
-                       <div className="absolute inset-0 bg-emerald-100 rounded-full animate-pulse-ring" />
-                       <div className="absolute inset-0 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-200"><Package className="w-10 h-10 text-white" /></div>
-                    </div>
-                    <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-2">Package Delivered</h4>
-                    <h3 className="text-3xl font-black text-slate-900 tracking-tighter mb-4">{currentDeliveryStop}</h3>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Resuming in 5s</div>
-                  </div>
                 </div>
               )}
 
