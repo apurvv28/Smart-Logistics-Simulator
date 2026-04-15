@@ -31,9 +31,9 @@ function createStopMarker(isDelivered, isCurrent, index) {
   });
 }
 
-// 1. BIKE SVG - Side View Sports Bike with Animations
-const BIKE_SVG = `
-  <div style="width: 80px; height: 52px; display: flex; align-items: center; justify-content: center; position: relative;">
+// 1. VAN SVG - Side View Logistics Van with Animations
+const VAN_SVG = (isMoving) => `
+  <div style="width: 100px; height: 60px; display: flex; align-items: center; justify-content: center; position: relative;">
     <style>
       @keyframes wheel-spin {
         from { transform: rotate(0deg); }
@@ -42,71 +42,80 @@ const BIKE_SVG = `
       @keyframes speed-line {
         0% { transform: translateX(0); opacity: 0; }
         50% { opacity: 0.8; }
-        100% { transform: translateX(-15px); opacity: 0; }
+        100% { transform: translateX(-20px); opacity: 0; }
       }
-      .wheel { animation: wheel-spin 0.4s linear infinite; transform-origin: center; }
-      .speed-line { animation: speed-line 0.6s ease-out infinite; }
+      @keyframes van-bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-1px); }
+      }
+      .wheel { animation: ${isMoving ? 'wheel-spin 0.3s linear infinite' : 'none'}; transform-origin: center; }
+      .speed-line { animation: ${isMoving ? 'speed-line 0.5s ease-out infinite' : 'none'}; opacity: 0; }
+      .van-body { animation: ${isMoving ? 'van-bounce 0.2s ease-in-out infinite' : 'none'}; }
     </style>
     
-    <svg width="80" height="52" viewBox="0 0 80 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="90" height="55" viewBox="0 0 90 55" fill="none" xmlns="http://www.w3.org/2000/svg" class="van-body">
       <!-- Speed Lines -->
-      <line x1="10" y1="20" x2="2" y2="20" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.1s" />
-      <line x1="8" y1="30" x2="0" y2="30" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.3s" />
-      <line x1="12" y1="40" x2="4" y2="40" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.5s" />
+      <line x1="15" y1="20" x2="5" y2="20" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.1s" />
+      <line x1="10" y1="30" x2="0" y2="30" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.3s" />
+      <line x1="18" y1="40" x2="8" y2="40" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.5s" />
+
+      <!-- Main Body -->
+      <path d="M12 10C12 7.79086 13.7909 6 16 6H65C67.2091 6 69 7.79086 69 10V42H12V10Z" fill="#6366f1" />
+      <path d="M69 15H78C80.2091 15 82 16.7909 82 19V42H69V15Z" fill="#4f46e5" />
+      
+      <!-- Window -->
+      <path d="M71 18H77C78.1046 18 79 18.8954 79 20V28H69V18H71Z" fill="#bae6fd" />
+      
+      <!-- Stripe/Branding -->
+      <rect x="12" y="24" width="57" height="6" fill="#4f46e5" />
+      <rect x="20" y="24" width="20" height="6" fill="#818cf8" />
 
       <!-- Back Wheel -->
       <g class="wheel">
-        <circle cx="25" cy="40" r="9" stroke="#1e1b4b" stroke-width="3" fill="#334155" />
-        <line x1="25" y1="31" x2="25" y2="49" stroke="#94a3b8" stroke-width="1" />
-        <line x1="16" y1="40" x2="34" y2="40" stroke="#94a3b8" stroke-width="1" />
+        <circle cx="28" cy="45" r="7" stroke="#0f172a" stroke-width="3" fill="#334155" />
+        <circle cx="28" cy="45" r="2.5" fill="#94a3b8" />
+        <line x1="28" y1="38" x2="28" y2="52" stroke="#94a3b8" stroke-width="1" />
+        <line x1="21" y1="45" x2="35" y2="45" stroke="#94a3b8" stroke-width="1" />
       </g>
 
       <!-- Front Wheel -->
       <g class="wheel">
-        <circle cx="65" cy="40" r="9" stroke="#1e1b4b" stroke-width="3" fill="#334155" />
-        <line x1="65" y1="31" x2="65" y2="49" stroke="#94a3b8" stroke-width="1" />
-        <line x1="56" y1="40" x2="74" y2="40" stroke="#94a3b8" stroke-width="1" />
+        <circle cx="70" cy="45" r="7" stroke="#0f172a" stroke-width="3" fill="#334155" />
+        <circle cx="70" cy="45" r="2.5" fill="#94a3b8" />
+        <line x1="70" y1="38" x2="70" y2="52" stroke="#94a3b8" stroke-width="1" />
+        <line x1="63" y1="45" x2="77" y2="45" stroke="#94a3b8" stroke-width="1" />
       </g>
 
-      <!-- Bike Body -->
-      <path d="M25 40L35 25H60L65 40" stroke="#4338ca" stroke-width="6" stroke-linecap="round" />
-      <path d="M30 25L45 15H65L60 25" fill="#4338ca" />
-      
-      <!-- Engine/Details -->
-      <rect x="35" y="28" width="20" height="10" rx="2" fill="#1e293b" />
-      
-      <!-- Delivery Box -->
-      <rect x="15" y="10" width="18" height="15" rx="2" fill="#f59e0b" />
-      <rect x="18" y="13" width="12" height="2" fill="#d97706" />
-
-      <!-- Rider Body -->
-      <path d="M48 25C48 25 45 15 55 12C65 9 68 18 68 18L60 25H48Z" fill="#1e1b4b" />
-      <!-- Rider Helmet -->
-      <circle cx="60" cy="12" r="5" fill="#0f172a" />
-      <rect x="61" y="11" width="4" height="2" rx="1" fill="#475569" />
+      <!-- Headlight -->
+      <rect x="80" y="32" width="3" height="5" rx="1.5" fill="#fbbf24" />
+      <!-- Taillight -->
+      <rect x="11" y="32" width="2" height="6" fill="#ef4444" />
     </svg>
   </div>
 `;
 
-const createRiderIcon = (bearing = 0) => L.divIcon({
-  className: '',
-  html: `
-    <div style="
-      transform: rotate(${bearing}deg); 
-      transform-origin: center center;
-      width: 80px; 
-      height: 52px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.2s ease-out;
-    ">
-      ${BIKE_SVG}
-    </div>
-  `,
-  iconSize: [80, 52],
-  iconAnchor: [40, 46],
-});
+const createRiderIcon = (bearing = 0, isMoving = false) => {
+  const isHeadingLeft = bearing > 100 && bearing < 260;
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="
+        transform: rotate(${bearing}deg) ${isHeadingLeft ? 'scaleY(-1)' : 'scaleY(1)'}; 
+        transform-origin: center center;
+        width: 100px; 
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease-out;
+      ">
+        ${VAN_SVG(isMoving)}
+      </div>
+    `,
+    iconSize: [100, 60],
+    iconAnchor: [50, 50],
+  });
+};
 
 // Map Auto-Center Component (Runs ONCE when route loads)
 function AutoFitBounds({ coordinates }) {
@@ -130,6 +139,7 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
   const [deliveredStops, setDeliveredStops] = useState(new Set());
   const [isDwellTime, setIsDwellTime] = useState(false);
   const [dwellCountdown, setDwellCountdown] = useState(0);
+  const [currentArrivalStop, setCurrentArrivalStop] = useState(null);
   const [statusMessage, setStatusMessage] = useState('System ready. Launch simulation to begin.');
   const [completedPath, setCompletedPath] = useState([]);
   const [isLoadingPath, setIsLoadingPath] = useState(false);
@@ -143,6 +153,17 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
       if (!route || route.length < 2) return;
       
       setIsLoadingPath(true);
+      // Reset simulation state for new city/route
+      setIsSimulating(false);
+      setIsPaused(false);
+      setCurrentSegmentIndex(0);
+      setDeliveredStops(new Set());
+      setCompletedPath([]);
+      setVanBearing(0);
+      setIsDwellTime(false);
+      setDwellCountdown(0);
+      setStatusMessage('System ready. Click "Launch Simulation" to begin tracking.');
+
       try {
         const coords = route.map(s => `${s.longitude},${s.latitude}`).join(';');
         const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
@@ -226,31 +247,48 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
       if (lastUpdateRef.current === 0) lastUpdateRef.current = time;
       const deltaTime = time - lastUpdateRef.current;
 
-      // Update every ~30ms for smoothness
-      if (deltaTime > 30) {
+      // Update every ~20ms for faster, smooth motion
+      if (deltaTime > 20) {
         lastUpdateRef.current = time;
         
-        const nextIdx = currentSegmentIndex + 1;
+        // Increase step increment to 2 for higher speed
+        const nextIdx = Math.min(currentSegmentIndex + 2, roadPath.length - 1);
+        
+        // Robust stop detection: Check all indices in this step skip to ensure no stop is ever missed
+        let detectedStop = null;
+        let detectionIdx = nextIdx;
+
+        for (let i = currentSegmentIndex; i <= nextIdx; i++) {
+          const checkPos = roadPath[i];
+          const found = route.find((s, routeIdx) => {
+            const d = Math.sqrt(Math.pow(s.latitude - checkPos[0], 2) + Math.pow(s.longitude - checkPos[1], 2));
+            // 0.001 threshold (~110m) ensures we never miss a stop even if roads are slightly offset from marker
+            return d < 0.001 && !deliveredStops.has(s.id) && s.id !== warehouse.id;
+          });
+          if (found) {
+            detectedStop = found;
+            detectionIdx = i;
+            break;
+          }
+        }
+
+        if (detectedStop) {
+          const stopPos = roadPath[detectionIdx];
+          setVanPos(stopPos);
+          setCompletedPath(prev => [...prev, stopPos]);
+          setCurrentSegmentIndex(detectionIdx);
+          handleArrival(detectedStop);
+          return;
+        }
+
         const currentPos = roadPath[currentSegmentIndex];
         const nextPos = roadPath[nextIdx];
-
-        // Check if we reached a delivery stop
-        // We match by finding nearest delivery stop within distance (threshold)
-        const currentStop = route.find(s => {
-          const d = Math.sqrt(Math.pow(s.latitude - nextPos[0], 2) + Math.pow(s.longitude - nextPos[1], 2));
-          return d < 0.0001 && !deliveredStops.has(s.id) && s.id !== warehouse.id;
-        });
-
         const bearing = calculateBearing(currentPos, nextPos);
+        
         setVanBearing(bearing);
         setVanPos(nextPos);
         setCompletedPath(prev => [...prev, nextPos]);
         setCurrentSegmentIndex(nextIdx);
-
-        if (currentStop) {
-          handleArrival(currentStop);
-          return;
-        }
       }
       animationRef.current = requestAnimationFrame(animate);
     };
@@ -263,6 +301,7 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
   }, [isSimulating, isPaused, currentSegmentIndex, isDwellTime, roadPath, route, deliveredStops, warehouse.id]);
 
   const handleArrival = (stop) => {
+    setCurrentArrivalStop(stop);
     setIsDwellTime(true);
     setDwellCountdown(5);
     setStatusMessage(`⏹️ Stopped at ${stop.name}. Delivering...`);
@@ -273,6 +312,7 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
           clearInterval(timer);
           setDeliveredStops(prevSet => new Set(prevSet).add(stop.id));
           setIsDwellTime(false);
+          setCurrentArrivalStop(null);
           lastUpdateRef.current = 0; // Restart frame calculations cleanly
           return 0;
         }
@@ -328,18 +368,33 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
           </Marker>
 
           {/* Delivery Stops */}
-          {deliveryStops.map((stop, idx) => (
-            <Marker 
-              key={stop.id} 
-              position={[stop.latitude, stop.longitude]}
-              icon={createStopMarker(deliveredStops.has(stop.id), targetStop.id === stop.id, idx + 1)}
-            >
-              <Popup>{stop.name}</Popup>
-            </Marker>
-          ))}
+          {deliveryStops.map((stop) => {
+            // Find visit order in optimized route (0 is hub, 1-4 are stops)
+            const visitOrder = route.findIndex(s => s.id === stop.id);
+            const isDelivered = deliveredStops.has(stop.id);
+            const isCurrent = targetStop.id === stop.id;
+
+            return (
+              <Marker 
+                key={stop.id} 
+                position={[stop.latitude, stop.longitude]}
+                icon={createStopMarker(isDelivered, isCurrent, visitOrder > 0 ? visitOrder : '?')}
+              >
+                <Popup>
+                  <div className="p-2">
+                    <p className="font-bold text-slate-800">{stop.name}</p>
+                    <p className="text-xs text-slate-500">Visit #{visitOrder}</p>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
 
           {/* Rider Marker */}
-          <Marker position={vanPos} icon={createRiderIcon(vanBearing)} zIndexOffset={1000} />
+          {(() => {
+            const isMoving = isSimulating && !isPaused && !isDwellTime && !externalIsPaused;
+            return <Marker position={vanPos} icon={createRiderIcon(vanBearing, isMoving)} zIndexOffset={1000} />;
+          })()}
         </MapContainer>
 
         {/* 5-SECOND DELIVERY OVERLAY */}
@@ -351,7 +406,7 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
               </div>
               <h4 className="text-xs font-black text-emerald-600 uppercase tracking-[0.2em] mb-2">Package Delivered</h4>
               <h3 className="text-3xl font-black text-slate-900 tracking-tighter mb-4">
-                {targetStop.name}
+                {currentArrivalStop?.name || 'Area Delivery'}
               </h3>
               <div className="flex items-center justify-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

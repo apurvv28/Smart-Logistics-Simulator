@@ -59,6 +59,66 @@ body {
   border-color: #4f46e5;
 }
 
+.story-btn {
+  background-color: #1a6b8a;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+  transition: all 0.3s ease;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px -1px rgba(26, 107, 138, 0.3);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.story-btn:hover:not(:disabled) {
+  background-color: #155a75;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(26, 107, 138, 0.4);
+}
+
+.story-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.story-btn:disabled {
+  background-color: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 1; /* Reset opacity if it was used elsewhere */
+}
+
+.story-btn-secondary {
+  background-color: white;
+  color: #1a6b8a;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+  transition: all 0.3s ease;
+  border: 2px solid #1a6b8a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.story-btn-secondary:hover {
+  background-color: #f0f7f9;
+  transform: translateY(-2px);
+}
+
 .leaflet-container {
   font-family: 'Inter', sans-serif;
   background-color: #f1f5f9 !important;

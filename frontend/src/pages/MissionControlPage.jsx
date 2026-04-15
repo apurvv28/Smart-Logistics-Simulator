@@ -21,14 +21,9 @@ function InputField({ label, value, onChange, type = 'text', placeholder }) {
 function ActionButton({ label, onClick, disabled, loading }) {
   return (
     <button
-      className="story-btn w-full disabled:opacity-50 disabled:cursor-not-allowed transition"
+      className="story-btn w-full py-4 px-2"
       onClick={onClick}
       disabled={disabled || loading}
-      style={{
-        backgroundColor: disabled ? '#b0bec5' : '#1a6b8a',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-      }}
     >
       {label}
     </button>
