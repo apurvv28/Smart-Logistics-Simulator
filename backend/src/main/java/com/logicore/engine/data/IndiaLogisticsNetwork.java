@@ -116,6 +116,18 @@ public class IndiaLogisticsNetwork {
         cities.add(new CityNode(40, "Nagpur DeliveryZone", NodeType.DELIVERY_ZONE, 21.1466, 79.0889, 700));
         cities.add(new CityNode(41, "Solapur DeliveryZone", NodeType.DELIVERY_ZONE, 17.6599, 75.9064, 500));
         
+        // Expansion Cities
+        cities.add(new CityNode(42, "Surat Hub", NodeType.HUB, 21.1702, 72.8311, 2200));
+        cities.add(new CityNode(43, "Lucknow Warehouse", NodeType.WAREHOUSE, 26.8467, 80.9462, 3800));
+        cities.add(new CityNode(44, "Kanpur Hub", NodeType.HUB, 26.4499, 80.3319, 1800));
+        cities.add(new CityNode(45, "Indore Hub", NodeType.HUB, 22.7196, 75.8577, 2100));
+        cities.add(new CityNode(46, "Patna Warehouse", NodeType.WAREHOUSE, 25.5941, 85.1376, 3000));
+        cities.add(new CityNode(47, "Ludhiana Hub", NodeType.HUB, 30.9010, 75.8573, 1600));
+        cities.add(new CityNode(48, "Agra Hub", NodeType.HUB, 27.1767, 78.0081, 1500));
+        cities.add(new CityNode(49, "Varanasi DeliveryZone", NodeType.DELIVERY_ZONE, 25.3176, 82.9739, 450));
+        cities.add(new CityNode(50, "Amritsar DeliveryZone", NodeType.DELIVERY_ZONE, 31.6340, 74.8723, 400));
+        cities.add(new CityNode(51, "Gwalior Hub", NodeType.HUB, 26.2124, 78.1772, 1200));
+
         return cities;
     }
     
@@ -267,6 +279,40 @@ public class IndiaLogisticsNetwork {
         routes.add(new RouteConnection(32, 30, 255, 1.0));
         routes.add(new RouteConnection(30, 10, 275, 1.0));
         routes.add(new RouteConnection(6, 31, 870, 0.95));
+        
+        // Expansion Routes (Priority 3)
+        routes.add(new RouteConnection(0, 48, 200, 1.2));    // Delhi to Agra
+        routes.add(new RouteConnection(48, 51, 120, 1.0));   // Agra to Gwalior
+        routes.add(new RouteConnection(51, 21, 430, 1.0));   // Gwalior to Bhopal
+        routes.add(new RouteConnection(48, 43, 330, 1.1));   // Agra to Lucknow
+        routes.add(new RouteConnection(43, 44, 80, 1.2));    // Lucknow to Kanpur
+        routes.add(new RouteConnection(44, 46, 530, 1.0));   // Kanpur to Patna
+        routes.add(new RouteConnection(46, 6, 580, 1.0));    // Patna to Kolkata
+        routes.add(new RouteConnection(0, 47, 310, 1.1));    // Delhi to Ludhiana
+        routes.add(new RouteConnection(47, 50, 140, 1.0));   // Ludhiana to Amritsar
+        routes.add(new RouteConnection(15, 42, 260, 1.1));   // Ahmedabad to Surat
+        routes.add(new RouteConnection(42, 3, 280, 1.2));    // Surat to Mumbai
+        routes.add(new RouteConnection(21, 45, 190, 1.0));   // Bhopal to Indore
+        routes.add(new RouteConnection(45, 42, 400, 1.0));   // Indore to Surat
+        routes.add(new RouteConnection(43, 49, 300, 1.0));   // Lucknow to Varanasi
+        routes.add(new RouteConnection(49, 46, 250, 1.0));   // Varanasi to Patna
+
+        // Bidirectional (Return)
+        routes.add(new RouteConnection(48, 0, 200, 1.2));
+        routes.add(new RouteConnection(51, 48, 120, 1.0));
+        routes.add(new RouteConnection(21, 51, 430, 1.0));
+        routes.add(new RouteConnection(43, 48, 330, 1.1));
+        routes.add(new RouteConnection(44, 43, 80, 1.2));
+        routes.add(new RouteConnection(46, 44, 530, 1.0));
+        routes.add(new RouteConnection(6, 46, 580, 1.0));
+        routes.add(new RouteConnection(47, 0, 310, 1.1));
+        routes.add(new RouteConnection(50, 47, 140, 1.0));
+        routes.add(new RouteConnection(42, 15, 260, 1.1));
+        routes.add(new RouteConnection(3, 42, 280, 1.2));
+        routes.add(new RouteConnection(45, 21, 190, 1.0));
+        routes.add(new RouteConnection(42, 45, 400, 1.0));
+        routes.add(new RouteConnection(49, 43, 300, 1.0));
+        routes.add(new RouteConnection(46, 49, 250, 1.0));
         
         return routes;
     }

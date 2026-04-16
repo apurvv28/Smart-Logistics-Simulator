@@ -28,13 +28,28 @@ const MACRO_NODES = {
   21: { name: 'Bhopal', x: 280, y: 200 },
   6:  { name: 'Kolkata', x: 500, y: 210 },
   18: { name: 'Jaipur', x: 220, y: 130 },
-  1:  { name: 'Agra', x: 310, y: 130 },
+  48: { name: 'Agra', x: 300, y: 110 },
   3:  { name: 'Mumbai', x: 180, y: 310 },
   4:  { name: 'Pune', x: 210, y: 340 },
   22: { name: 'Nagpur', x: 320, y: 260 },
   10: { name: 'Hyderabad', x: 320, y: 370 },
   9:  { name: 'Bangalore', x: 270, y: 470 },
-  12: { name: 'Chennai', x: 330, y: 490 }
+  12: { name: 'Chennai', x: 330, y: 490 },
+  42: { name: 'Surat', x: 170, y: 260 },
+  43: { name: 'Lucknow', x: 360, y: 110 },
+  44: { name: 'Kanpur', x: 350, y: 130 },
+  45: { name: 'Indore', x: 240, y: 240 },
+  46: { name: 'Patna', x: 440, y: 150 },
+  47: { name: 'Ludhiana', x: 250, y: 40 },
+  50: { name: 'Amritsar', x: 230, y: 25 },
+  24: { name: 'Guwahati', x: 580, y: 140 },
+  27: { name: 'Kochi', x: 260, y: 550 },
+  30: { name: 'Vijayawada', x: 360, y: 410 },
+  31: { name: 'Vizag', x: 400, y: 380 },
+  13: { name: 'Coimbatore', x: 290, y: 520 },
+  51: { name: 'Gwalior', x: 290, y: 150 },
+  28: { name: 'Trivandrum', x: 280, y: 580 },
+  23: { name: 'Raipur', x: 390, y: 270 }
 };
 
 export default function EndToEndJourneyPage() {
@@ -229,19 +244,19 @@ export default function EndToEndJourneyPage() {
                   <span className="text-xl font-black text-indigo-600">{Math.round(overallProgress || 0)}%</span>
                 </div>
                 <div className="flex gap-1.5 h-3">
-                  <div className="flex-[7] bg-slate-100 rounded-l-full overflow-hidden border border-slate-200/50 relative">
+                  <div className="flex-[6] bg-slate-100 rounded-l-full overflow-hidden border border-slate-200/50 relative">
                     <div 
                       className="h-full bg-blue-500 transition-all duration-1000 shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
-                      style={{ width: `${Math.min(100, (overallProgress / 40) * 100)}%` }} 
+                      style={{ width: `${Math.min(100, (overallProgress / 60) * 100)}%` }} 
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <span className="text-[7px] font-black text-slate-400/60 uppercase">MACRO HUB</span>
                     </div>
                   </div>
-                  <div className="flex-[3] bg-slate-100 rounded-r-full overflow-hidden border border-slate-200/50 relative">
+                  <div className="flex-[4] bg-slate-100 rounded-r-full overflow-hidden border border-slate-200/50 relative">
                     <div 
                       className="h-full bg-emerald-500 transition-all duration-1000 shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
-                      style={{ width: `${overallProgress > 40 ? ((overallProgress - 40) / 60 * 100) : 0}%` }} 
+                      style={{ width: `${overallProgress > 60 ? ((overallProgress - 60) / 40 * 100) : 0}%` }} 
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <span className="text-[7px] font-black text-slate-400/60 uppercase">MICRO LAST-MILE</span>

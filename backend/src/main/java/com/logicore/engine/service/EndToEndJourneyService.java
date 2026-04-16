@@ -125,12 +125,12 @@ public class EndToEndJourneyService {
     }
 
     public void recalculateOverallProgress(EndToEndJourneyState state) {
-        double macroContrib = ((double) state.getMacroCurrentStepIndex() / (state.getMacroRoute().size() - 1 + 1)) * 40; // Adjusted for 1-based index roughly
-        if (state.getMacroCurrentStepIndex() >= state.getMacroRoute().size() - 1) macroContrib = 40.0;
+        double macroContrib = ((double) state.getMacroCurrentStepIndex() / (state.getMacroRoute().size() - 1)) * 60;
+        if (state.getMacroCurrentStepIndex() >= state.getMacroRoute().size() - 1) macroContrib = 60.0;
 
         double microContrib = 0;
         if (state.getMicroOptimalRoute() != null && !state.getMicroOptimalRoute().isEmpty()) {
-            microContrib = ((double) state.getMicroCurrentStepIndex() / (state.getMicroOptimalRoute().size() - 1)) * 60;
+            microContrib = ((double) state.getMicroCurrentStepIndex() / (state.getMicroOptimalRoute().size() - 1)) * 40;
         }
         double total = macroContrib + microContrib;
         state.setOverallProgressPercentage(Math.min(100.0, total));
@@ -201,6 +201,13 @@ public class EndToEndJourneyService {
             case 18 -> "JAI";
             case 21 -> "BHO";
             case 22 -> "NAG";
+            case 42 -> "SUR";
+            case 43 -> "LKO";
+            case 44 -> "KAN";
+            case 45 -> "IND";
+            case 46 -> "PAT";
+            case 47 -> "LUD";
+            case 48 -> "AGR";
             default -> "NAG";
         };
     }

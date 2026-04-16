@@ -108,5 +108,55 @@ export const CITY_DATA = {
       { id: 'addr3', name: 'MIHAN SEZ', address: 'Wardha Rd, Nagpur', latitude: 21.0661, longitude: 79.0560 },
       { id: 'addr4', name: 'Itwari', address: 'Central Ave, Nagpur', latitude: 21.1550, longitude: 79.1080 }
     ]
+  },
+  LKO: {
+    id: 'LKO', name: 'Lucknow', nodeId: 43,
+    warehouse: { id: 'warehouse', name: 'Lucknow Hub', latitude: 26.8467, longitude: 80.9462 },
+    deliveryAddresses: [
+      { id: 'addr1', name: 'Hazratganj', address: 'Mayfair, Lucknow', latitude: 26.8500, longitude: 80.9400 },
+      { id: 'addr2', name: 'Gomti Nagar', address: 'Vivek Khand, Lucknow', latitude: 26.8600, longitude: 81.0000 },
+      { id: 'addr3', name: 'Aliganj', address: 'Sector C, Lucknow', latitude: 26.9000, longitude: 80.9300 },
+      { id: 'addr4', name: 'Aashiana', address: 'Sector K, Lucknow', latitude: 26.7800, longitude: 80.9100 }
+    ]
+  },
+  PAT: {
+    id: 'PAT', name: 'Patna', nodeId: 46,
+    warehouse: { id: 'warehouse', name: 'Patna Hub', latitude: 25.5941, longitude: 85.1376 },
+    deliveryAddresses: [
+      { id: 'addr1', name: 'Boring Road', address: 'Crossing, Patna', latitude: 25.6186, longitude: 85.1186 },
+      { id: 'addr2', name: 'Patliputra', address: 'Industrial Area, Patna', latitude: 25.6322, longitude: 85.1054 },
+      { id: 'addr3', name: 'Kankarbagh', address: 'Colony, Patna', latitude: 25.5961, longitude: 85.1554 },
+      { id: 'addr4', name: 'Rajendra Nagar', address: 'Stadium, Patna', latitude: 25.5999, longitude: 85.1666 }
+    ]
+  },
+  SUR: {
+    id: 'SUR', name: 'Surat', nodeId: 42,
+    warehouse: { id: 'warehouse', name: 'Surat Diamond Hub', latitude: 21.1702, longitude: 72.8311 },
+    deliveryAddresses: [
+      { id: 'addr1', name: 'Adajan', address: 'L.P. Savani Rd, Surat', latitude: 21.1963, longitude: 72.7933 },
+      { id: 'addr2', name: 'Vesu', address: 'VIP Road, Surat', latitude: 21.1375, longitude: 72.7846 },
+      { id: 'addr3', name: 'Varachha', address: 'Mini Bazaar, Surat', latitude: 21.2120, longitude: 72.8550 },
+      { id: 'addr4', name: 'Piplod', address: 'Dumas Road, Surat', latitude: 21.1492, longitude: 72.7750 }
+    ]
+  },
+  IND: {
+    id: 'IND', name: 'Indore', nodeId: 45,
+    warehouse: { id: 'warehouse', name: 'Indore Hub', latitude: 22.7196, longitude: 75.8577 },
+    deliveryAddresses: [
+      { id: 'addr1', name: 'Vijay Nagar', address: 'C21 Mall, Indore', latitude: 22.7533, longitude: 75.8937 },
+      { id: 'addr2', name: 'Rajwada', address: 'Main Market, Indore', latitude: 22.7186, longitude: 75.8550 },
+      { id: 'addr3', name: 'Palasia', address: 'Old Palasia, Indore', latitude: 22.7244, longitude: 75.8839 },
+      { id: 'addr4', name: 'Rau', address: 'Pithampur Road, Indore', latitude: 22.6393, longitude: 75.8116 }
+    ]
+  },
+  AGR: {
+    id: 'AGR', name: 'Agra', nodeId: 48,
+    warehouse: { id: 'warehouse', name: 'Agra Hub', latitude: 27.1767, longitude: 78.0081 },
+    deliveryAddresses: [
+      { id: 'addr1', name: 'Sanjay Place', address: 'Commercial complex, Agra', latitude: 27.1974, longitude: 78.0039 },
+      { id: 'addr2', name: 'Taj Ganj', address: 'East Gate side, Agra', latitude: 27.1650, longitude: 78.0450 },
+      { id: 'addr3', name: 'Fatehabad Rd', address: 'Hotel belt, Agra', latitude: 27.1580, longitude: 78.0580 },
+      { id: 'addr4', name: 'Kamla Nagar', address: 'Market, Agra', latitude: 27.2150, longitude: 78.0250 }
+    ]
   }
 };

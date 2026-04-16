@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import { Play, Pause, RotateCcw, Clock, CheckCircle2, Navigation, Package, Truck, Info, ChevronRight } from 'lucide-react';
 import L from 'leaflet';
+import { renderToStaticMarkup } from 'react-dom/server';
+import SportsBikeMarker from './SportsBikeMarker';
 
 const STOP_DWELL_TIME = 5000; 
 
@@ -31,89 +33,16 @@ function createStopMarker(isDelivered, isCurrent, index) {
   });
 }
 
-// 1. VAN SVG - Side View Logistics Van with Animations
-const VAN_SVG = (isMoving) => `
-  <div style="width: 100px; height: 60px; display: flex; align-items: center; justify-content: center; position: relative;">
-    <style>
-      @keyframes wheel-spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      @keyframes speed-line {
-        0% { transform: translateX(0); opacity: 0; }
-        50% { opacity: 0.8; }
-        100% { transform: translateX(-20px); opacity: 0; }
-      }
-      @keyframes van-bounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-1px); }
-      }
-      .wheel { animation: ${isMoving ? 'wheel-spin 0.3s linear infinite' : 'none'}; transform-origin: center; }
-      .speed-line { animation: ${isMoving ? 'speed-line 0.5s ease-out infinite' : 'none'}; opacity: 0; }
-      .van-body { animation: ${isMoving ? 'van-bounce 0.2s ease-in-out infinite' : 'none'}; }
-    </style>
-    
-    <svg width="90" height="55" viewBox="0 0 90 55" fill="none" xmlns="http://www.w3.org/2000/svg" class="van-body">
-      <!-- Speed Lines -->
-      <line x1="15" y1="20" x2="5" y2="20" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.1s" />
-      <line x1="10" y1="30" x2="0" y2="30" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.3s" />
-      <line x1="18" y1="40" x2="8" y2="40" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" class="speed-line" style="animation-delay: 0.5s" />
-
-      <!-- Main Body -->
-      <path d="M12 10C12 7.79086 13.7909 6 16 6H65C67.2091 6 69 7.79086 69 10V42H12V10Z" fill="#6366f1" />
-      <path d="M69 15H78C80.2091 15 82 16.7909 82 19V42H69V15Z" fill="#4f46e5" />
-      
-      <!-- Window -->
-      <path d="M71 18H77C78.1046 18 79 18.8954 79 20V28H69V18H71Z" fill="#bae6fd" />
-      
-      <!-- Stripe/Branding -->
-      <rect x="12" y="24" width="57" height="6" fill="#4f46e5" />
-      <rect x="20" y="24" width="20" height="6" fill="#818cf8" />
-
-      <!-- Back Wheel -->
-      <g class="wheel">
-        <circle cx="28" cy="45" r="7" stroke="#0f172a" stroke-width="3" fill="#334155" />
-        <circle cx="28" cy="45" r="2.5" fill="#94a3b8" />
-        <line x1="28" y1="38" x2="28" y2="52" stroke="#94a3b8" stroke-width="1" />
-        <line x1="21" y1="45" x2="35" y2="45" stroke="#94a3b8" stroke-width="1" />
-      </g>
-
-      <!-- Front Wheel -->
-      <g class="wheel">
-        <circle cx="70" cy="45" r="7" stroke="#0f172a" stroke-width="3" fill="#334155" />
-        <circle cx="70" cy="45" r="2.5" fill="#94a3b8" />
-        <line x1="70" y1="38" x2="70" y2="52" stroke="#94a3b8" stroke-width="1" />
-        <line x1="63" y1="45" x2="77" y2="45" stroke="#94a3b8" stroke-width="1" />
-      </g>
-
-      <!-- Headlight -->
-      <rect x="80" y="32" width="3" height="5" rx="1.5" fill="#fbbf24" />
-      <!-- Taillight -->
-      <rect x="11" y="32" width="2" height="6" fill="#ef4444" />
-    </svg>
-  </div>
-`;
-
-const createRiderIcon = (bearing = 0, isMoving = false) => {
-  const isHeadingLeft = bearing > 100 && bearing < 260;
+const createRiderIcon = (bearing = 0, speed = 0, isMoving = false) => {
+  const html = renderToStaticMarkup(
+    <SportsBikeMarker bearing={bearing} speed={speed} isMoving={isMoving} />
+  );
+  
   return L.divIcon({
     className: '',
-    html: `
-      <div style="
-        transform: rotate(${bearing}deg) ${isHeadingLeft ? 'scaleY(-1)' : 'scaleY(1)'}; 
-        transform-origin: center center;
-        width: 100px; 
-        height: 60px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: transform 0.2s ease-out;
-      ">
-        ${VAN_SVG(isMoving)}
-      </div>
-    `,
+    html: html,
     iconSize: [100, 60],
-    iconAnchor: [50, 50],
+    iconAnchor: [50, 30],
   });
 };
 
@@ -393,7 +322,8 @@ const IntraCityMapSimulator = ({ warehouse, deliveryStops, route, totalDistance,
           {/* Rider Marker */}
           {(() => {
             const isMoving = isSimulating && !isPaused && !isDwellTime && !externalIsPaused;
-            return <Marker position={vanPos} icon={createRiderIcon(vanBearing, isMoving)} zIndexOffset={1000} />;
+            const speed = isMoving ? 30 : 0; // Simple approximation for animation
+            return <Marker position={vanPos} icon={createRiderIcon(vanBearing, speed, isMoving)} zIndexOffset={1000} />;
           })()}
         </MapContainer>
 
