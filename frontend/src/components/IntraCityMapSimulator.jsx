@@ -382,21 +382,21 @@ const IntraCityMapSimulator = ({
         {/* MISSION ACCOMPLISHED OVERLAY */}
         {deliveredStops.size === finalStops.length && !isSimulating && currentSegmentIndex >= roadPath.length - 1 && roadPath.length > 0 && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] animate-in fade-in zoom-in duration-500">
-            <div className="bg-slate-900/95 backdrop-blur-xl rounded-[3rem] p-12 shadow-2xl border border-indigo-500/30 text-center scale-110">
-              <div className="w-24 h-24 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(99,102,241,0.3)]">
-                <CheckCircle2 className="w-12 h-12 text-indigo-400" />
+            <div className="bg-white/95 backdrop-blur-md rounded-[2rem] p-6 shadow-xl border border-indigo-100 text-center min-w-[280px]">
+              <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner ring-4 ring-indigo-50">
+                <CheckCircle2 className="w-7 h-7 text-indigo-600 animate-bounce" />
               </div>
-              <h4 className="text-xs font-black text-indigo-400 uppercase tracking-[0.3em] mb-3">All Deliveries Complete</h4>
-              <h3 className="text-4xl font-black text-white tracking-tighter mb-6">
+              <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-1">All Deliveries Complete</h4>
+              <h3 className="text-xl font-black text-slate-900 tracking-tighter mb-3">
                 Mission Accomplished
               </h3>
-              <div className="flex items-center justify-center gap-3">
-                 <Truck className="w-4 h-4 text-slate-400" />
-                 <span className="text-sm font-bold text-slate-400 tracking-tight">Returned to Hub safely</span>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                 <Truck className="w-3.5 h-3.5 text-slate-500" />
+                 <span className="text-[10px] font-bold text-slate-500 tracking-tight">Returned to Hub safely</span>
               </div>
               <button 
                 onClick={resetSimulation}
-                className="mt-8 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-indigo-500/20"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-md shadow-indigo-500/20"
               >
                 Reset System
               </button>
