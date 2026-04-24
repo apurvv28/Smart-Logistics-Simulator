@@ -111,12 +111,7 @@ public class LocalDeliveryController {
             response.put("sequence", localDeliveryService.getRouteSequence(route));
             response.put("totalDistance", totalDistance);
             response.put("estimatedDuration", estimatedDuration);
-            
-            // Mock OSRM-like path structure for frontend compatibility
-            Map<String, Object> routeDetails = new HashMap<>();
-            routeDetails.put("path", route.stream().map(s -> List.of(s.getLatitude(), s.getLongitude())).toList());
-            routeDetails.put("segments", List.of()); // could be populated later
-            response.put("route", routeDetails);
+            response.put("route", route);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

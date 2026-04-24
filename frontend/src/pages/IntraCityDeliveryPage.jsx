@@ -203,6 +203,8 @@ export default function IntraCityDeliveryPage() {
               route={mapRoute}
               totalDistance={mapDistance}
               shouldStartAnimation={!!simulationData}
+              onStartSimulation={handleStartSimulation}
+              loading={loading}
             />
           ) : (
             <div className="flex h-full min-h-[640px] flex-col items-center justify-center gap-4 bg-slate-100 px-8 text-center">

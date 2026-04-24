@@ -73,7 +73,9 @@ const IntraCityMapSimulator = ({
   autoSimulate = false, 
   shouldStartAnimation = false,
   onAnimationComplete,
-  externalIsPaused = false 
+  externalIsPaused = false,
+  onStartSimulation,
+  loading = false
 }) => {
   const finalStops = deliveryAddresses.length > 0 ? deliveryAddresses : deliveryStops;
   const [isSimulating, setIsSimulating] = useState(false);
@@ -136,10 +138,12 @@ const IntraCityMapSimulator = ({
 
   // Auto-start for End-to-End integration or manual trigger
   useEffect(() => {
-    if ((autoSimulate || shouldStartAnimation) && roadPath.length > 0 && !isSimulating) {
+    // Only auto-start if we haven't already completed the deliveries
+    const isCompleted = deliveredStops.size > 0 && deliveredStops.size === finalStops.length;
+    if ((autoSimulate || shouldStartAnimation) && roadPath.length > 0 && !isSimulating && !isCompleted) {
       startSimulation();
     }
-  }, [autoSimulate, shouldStartAnimation, roadPath, isSimulating]);
+  }, [autoSimulate, shouldStartAnimation, roadPath, isSimulating, deliveredStops.size, finalStops.length]);
 
   const startSimulation = () => {
     if (roadPath.length === 0) return;
@@ -376,7 +380,7 @@ const IntraCityMapSimulator = ({
         )}
 
         {/* MISSION ACCOMPLISHED OVERLAY */}
-        {deliveredStops.size === deliveryStops.length && !isSimulating && currentSegmentIndex >= roadPath.length - 1 && roadPath.length > 0 && (
+        {deliveredStops.size === finalStops.length && !isSimulating && currentSegmentIndex >= roadPath.length - 1 && roadPath.length > 0 && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] animate-in fade-in zoom-in duration-500">
             <div className="bg-slate-900/95 backdrop-blur-xl rounded-[3rem] p-12 shadow-2xl border border-indigo-500/30 text-center scale-110">
               <div className="w-24 h-24 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(99,102,241,0.3)]">
@@ -475,20 +479,26 @@ const IntraCityMapSimulator = ({
               </div>
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-colors group">
                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-400">Total Stops</p>
-                 <p className="text-2xl font-black text-slate-800 tracking-tighter">{deliveryStops.length}</p>
+                 <p className="text-2xl font-black text-slate-800 tracking-tighter">{finalStops.length}</p>
               </div>
            </div>
 
            <button 
-              onClick={isSimulating ? togglePause : startSimulation}
-              disabled={isLoadingPath}
+              onClick={() => {
+                if (shouldStartAnimation) {
+                  isSimulating ? togglePause() : startSimulation();
+                } else if (onStartSimulation) {
+                  onStartSimulation();
+                }
+              }}
+              disabled={isLoadingPath || loading}
               className={`w-full py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl disabled:opacity-50 ${
                 isSimulating 
                   ? (isPaused ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')
                   : 'bg-indigo-600 hover:bg-indigo-700 text-white'
               }`}
            >
-              {isLoadingPath ? 'Analyzing Roads...' : (
+              {isLoadingPath || loading ? (loading ? 'Calculating Route...' : 'Analyzing Roads...') : (
                 <>
                   {isSimulating ? (isPaused ? <Play className="w-5 h-5 fill-current" /> : <Pause className="w-5 h-5 fill-current" />) : <Play className="w-5 h-5 fill-current" />}
                   {isSimulating ? (isPaused ? 'Resume Mission' : 'Pause Tracking') : 'Launch Simulation'}
@@ -514,7 +524,7 @@ const IntraCityMapSimulator = ({
                  <Clock className="w-4 h-4 text-slate-400" />
                  <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Delivery Sequence</span>
               </div>
-              <span className="text-[10px] font-bold text-slate-300">{deliveredStops.size} / {deliveryStops.length} done</span>
+              <span className="text-[10px] font-bold text-slate-300">{deliveredStops.size} / {finalStops.length} done</span>
            </div>
 
            <div className="space-y-4">
@@ -561,11 +571,11 @@ const IntraCityMapSimulator = ({
 
               {/* Final Return */}
               <div className={`flex items-start gap-4 p-4 rounded-2xl border transition-all ${
-                deliveredStops.size === deliveryStops.length && !isSimulating ? 'bg-indigo-600 border-indigo-700 shadow-xl' : 'bg-white border-slate-100 opacity-30'
+                deliveredStops.size === finalStops.length && !isSimulating ? 'bg-indigo-600 border-indigo-700 shadow-xl' : 'bg-white border-slate-100 opacity-30'
               }`}>
                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm">🏁</div>
                  <div className="flex-1">
-                    <p className={`text-sm font-bold ${deliveredStops.size === deliveryStops.length && !isSimulating ? 'text-white' : 'text-slate-400'}`}>Return to Hub</p>
+                    <p className={`text-sm font-bold ${deliveredStops.size === finalStops.length && !isSimulating ? 'text-white' : 'text-slate-400'}`}>Return to Hub</p>
                  </div>
               </div>
            </div>
