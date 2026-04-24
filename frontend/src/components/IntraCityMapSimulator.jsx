@@ -439,7 +439,7 @@ const IntraCityMapSimulator = ({
              <div className="space-y-1">
                 <div className="flex justify-between items-center text-[9px]">
                    <span className="text-slate-400">Optimization:</span>
-                   <span className="text-indigo-300 font-bold">A* Heuristic</span>
+                   <span className="text-indigo-300 font-bold">Dijkstra</span>
                 </div>
                 <div className="flex justify-between items-center text-[9px]">
                    <span className="text-slate-400">Road Data:</span>

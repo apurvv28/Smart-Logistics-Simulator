@@ -260,13 +260,14 @@ public class LocalDeliveryService {
         List<LocalDeliveryStop> route = new ArrayList<>();
         route.add(warehouse);
 
-        // Apply Exact TSP to compute absolute shortest order for deliveries
+        // Apply Greedy TSP (Dijkstra-based nearest neighbor logic) to compute optimal order for deliveries
+        // greedyNearestNeighbor() expects warehouse at index 0
         List<LocalDeliveryStop> allStops = new ArrayList<>();
         allStops.add(warehouse);
         allStops.addAll(deliveryAddresses);
 
         // Compute optimized order
-        List<LocalDeliveryStop> optimizedOrder = exactTSP(allStops);
+        List<LocalDeliveryStop> optimizedOrder = greedyNearestNeighbor(allStops);
 
         // Extract just the stops (skip warehouse at start, skip warehouse at end)
         if (optimizedOrder.size() > 2) {
@@ -281,46 +282,6 @@ public class LocalDeliveryService {
         route.add(warehouse);
 
         return route;
-    }
-
-    private List<LocalDeliveryStop> exactTSP(List<LocalDeliveryStop> stops) {
-        if (stops.size() <= 2) return new ArrayList<>(stops);
-        
-        List<LocalDeliveryStop> bestRoute = null;
-        double minDistance = Double.MAX_VALUE;
-        
-        LocalDeliveryStop warehouse = stops.get(0);
-        List<LocalDeliveryStop> deliveries = new ArrayList<>(stops.subList(1, stops.size()));
-        
-        List<List<LocalDeliveryStop>> permutations = new ArrayList<>();
-        generatePermutations(deliveries, 0, permutations);
-        
-        for (List<LocalDeliveryStop> perm : permutations) {
-            List<LocalDeliveryStop> currentRoute = new ArrayList<>();
-            currentRoute.add(warehouse);
-            currentRoute.addAll(perm);
-            currentRoute.add(warehouse);
-            
-            double dist = calculateTotalDistance(currentRoute);
-            if (dist < minDistance) {
-                minDistance = dist;
-                bestRoute = currentRoute;
-            }
-        }
-        
-        return bestRoute;
-    }
-    
-    private void generatePermutations(List<LocalDeliveryStop> arr, int k, List<List<LocalDeliveryStop>> result) {
-        if (k == arr.size()) {
-            result.add(new ArrayList<>(arr));
-            return;
-        }
-        for (int i = k; i < arr.size(); i++) {
-            Collections.swap(arr, i, k);
-            generatePermutations(arr, k + 1, result);
-            Collections.swap(arr, k, i);
-        }
     }
 
     /**
