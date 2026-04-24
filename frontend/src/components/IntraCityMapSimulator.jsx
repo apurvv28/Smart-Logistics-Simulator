@@ -359,17 +359,17 @@ const IntraCityMapSimulator = ({
         {/* 5-SECOND DELIVERY OVERLAY */}
         {isDwellTime && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] animate-in zoom-in duration-300">
-            <div className="bg-white/95 backdrop-blur-md rounded-[2.5rem] p-10 shadow-2xl border border-emerald-100 text-center scale-110">
-              <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ring-8 ring-emerald-50">
-                <CheckCircle2 className="w-10 h-10 text-emerald-600 animate-bounce" />
+            <div className="bg-white/95 backdrop-blur-md rounded-[2rem] p-6 shadow-xl border border-emerald-100 text-center">
+              <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner ring-4 ring-emerald-50">
+                <CheckCircle2 className="w-7 h-7 text-emerald-600 animate-bounce" />
               </div>
-              <h4 className="text-xs font-black text-emerald-600 uppercase tracking-[0.2em] mb-2">Package Delivered</h4>
-              <h3 className="text-3xl font-black text-slate-900 tracking-tighter mb-4">
+              <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-1">Package Delivered</h4>
+              <h3 className="text-xl font-black text-slate-900 tracking-tighter mb-3">
                 {currentArrivalStop?.name || 'Area Delivery'}
               </h3>
               <div className="flex items-center justify-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resuming in {dwellCountdown}s</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Resuming in {dwellCountdown}s</span>
               </div>
             </div>
           </div>
@@ -454,14 +454,14 @@ const IntraCityMapSimulator = ({
       </div>
 
       {/* RIGHT: Control Sidebar */}
-      <div className="w-[420px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)]">
-        <div className="p-8 border-b border-slate-100">
-           <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                 <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                    <Navigation className="w-6 h-6" />
+      <div className="w-[280px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)]">
+        <div className="p-5 border-b border-slate-100">
+           <div className="flex flex-col gap-2 mb-6">
+              <div className="flex items-center gap-2">
+                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                    <Navigation className="w-4 h-4" />
                  </div>
-                 <h2 className="text-2xl font-black text-slate-900 tracking-tight">Mission Control</h2>
+                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Mission Control</h2>
               </div>
               <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-full border border-indigo-100 uppercase tracking-widest">
                 City Scale: 15KM

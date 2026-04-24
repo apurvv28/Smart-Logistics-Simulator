@@ -29,6 +29,7 @@ export default function IntraCityDeliveryPage() {
   const [simulationData, setSimulationData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [algorithm, setAlgorithm] = useState('A*');
 
   useEffect(() => {
     setSimulationData(null);
@@ -62,7 +63,7 @@ export default function IntraCityDeliveryPage() {
           latitude: address.lat,
           longitude: address.lng,
         })),
-        algorithmType: 'GREEDY_TSP',
+        algorithmType: algorithm,
       });
 
       if (response.data.status === 'success') {
@@ -131,7 +132,22 @@ export default function IntraCityDeliveryPage() {
           </div>
         </div>
 
-        <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-3">
+          <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-4">
+          <div className="relative">
+            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">Algorithm</label>
+            <select
+              value={algorithm}
+              onChange={(e) => setAlgorithm(e.target.value)}
+              className="appearance-none w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 pr-10 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            >
+              <option value="A*">A*</option>
+              <option value="Dijkstra">Dijkstra</option>
+              <option value="Bellman-Ford">Bellman-Ford</option>
+              <option value="Floyd-Warshall">Floyd-Warshall</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-4 top-[60%] -translate-y-1/2 w-4 h-4 text-slate-400" />
+          </div>
+
           <div className="relative">
             <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">City selector</label>
             <select
@@ -145,7 +161,7 @@ export default function IntraCityDeliveryPage() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <ChevronDown className="pointer-events-none absolute right-4 top-[60%] -translate-y-1/2 w-4 h-4 text-slate-400" />
           </div>
 
           <div className="relative">
@@ -162,7 +178,7 @@ export default function IntraCityDeliveryPage() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <ChevronDown className="pointer-events-none absolute right-4 top-[60%] -translate-y-1/2 w-4 h-4 text-slate-400" />
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">

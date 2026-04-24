@@ -1,5 +1,5 @@
 import React from 'react';
-import bikeImg from '../../dist/assets/bike.png';
+import bikeImg from '../../dist/assets/bike-removebg-preview.png';
 
 const SportsBikeMarker = ({ bearing = 0, speed = 0, isMoving = false }) => {
   const isHeadingLeft = bearing > 180;
