@@ -7,14 +7,15 @@ package com.logicore.engine.model;
 public class Product {
     private String sku;
     private String name;
-    private String url;  // Original product link
+
+    private String url; // Original product link
     private double weight; // in kg
     private double price;
     private String category;
     private int warehouseNodeId; // Where this product is stocked
     private int quantity; // Current stock
     private String source; // "AMAZON" or "FLIPKART"
-    
+
     // Delivery preference based on product type
     private DeliveryPreference deliveryPreference;
 
@@ -22,7 +23,7 @@ public class Product {
     }
 
     public Product(String sku, String name, String url, double weight, double price, String category,
-                   int warehouseNodeId, int quantity, String source, DeliveryPreference deliveryPreference) {
+            int warehouseNodeId, int quantity, String source, DeliveryPreference deliveryPreference) {
         this.sku = sku;
         this.name = name;
         this.url = url;
@@ -114,11 +115,11 @@ public class Product {
     public void setDeliveryPreference(DeliveryPreference deliveryPreference) {
         this.deliveryPreference = deliveryPreference;
     }
-    
+
     public enum DeliveryPreference {
-        STANDARD,      // 5-7 days
-        EXPRESS,       // 2-3 days
-        SAME_DAY,      // Same day delivery
-        FRAGILE        // Special handling needed
+        STANDARD, // 5-7 days
+        EXPRESS, // 2-3 days
+        SAME_DAY, // Same day delivery
+        FRAGILE // Special handling needed
     }
 }

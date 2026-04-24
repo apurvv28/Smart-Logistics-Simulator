@@ -38,6 +38,23 @@ public class LocalDeliveryController {
      }
 
     /**
+     * GET /api/local-delivery/warehouses/{cityId}
+     * Returns list of available warehouses for a city
+     */
+    @GetMapping("/warehouses/{cityId}")
+    public ResponseEntity<Map<String, Object>> getWarehousesForCity(@PathVariable String cityId) {
+        try {
+            List<LocalDeliveryStop> warehouses = localDeliveryService.getWarehousesForCity(cityId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("warehouses", warehouses);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return errorResponse("Failed to fetch warehouses: " + e.getMessage());
+        }
+    }
+
+    /**
      * POST /api/local-delivery/calculate-city-route
      * Calculates optimal delivery route for a specific city
      * 
@@ -47,27 +64,59 @@ public class LocalDeliveryController {
     public ResponseEntity<Map<String, Object>> calculateCityRoute(@RequestBody Map<String, Object> request) {
         try {
             String cityId = (String) request.get("cityId");
-            int numberOfStops = request.containsKey("numberOfStops") ? ((Number) request.get("numberOfStops")).intValue() : 12;
-            String algorithm = (String) request.getOrDefault("algorithmType", "GREEDY");
+            String algorithm = (String) request.getOrDefault("algorithmType", "GREEDY_TSP");
 
-            LocalDeliveryStop warehouse = localDeliveryService.getWarehouseForCity(cityId);
-            List<LocalDeliveryStop> deliveryStops = localDeliveryService.generateMockDeliveryStops(cityId, numberOfStops);
+            // Extract warehouse if provided, else get default
+            LocalDeliveryStop warehouse;
+            if (request.containsKey("warehouse")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> warehouseData = (Map<String, Object>) request.get("warehouse");
+                warehouse = mapToDeliveryStop(warehouseData);
+            } else if (request.containsKey("warehouseId")) {
+                warehouse = localDeliveryService.getWarehouseById((String) request.get("warehouseId"));
+            } else {
+                warehouse = localDeliveryService.getWarehouseForCity(cityId);
+            }
+
+            // Extract delivery addresses if provided, else generate mock
+            List<LocalDeliveryStop> deliveryStops;
+            if (request.containsKey("deliveryAddresses")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> stopsData = (List<Map<String, Object>>) request.get("deliveryAddresses");
+                deliveryStops = stopsData.stream()
+                        .map(this::mapToDeliveryStop)
+                        .toList();
+            } else if (request.containsKey("deliveryStops")) { // Compatibility with current frontend
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> stopsData = (List<Map<String, Object>>) request.get("deliveryStops");
+                deliveryStops = stopsData.stream()
+                        .map(this::mapToDeliveryStop)
+                        .toList();
+            } else {
+                int numberOfStops = request.containsKey("numberOfStops") ? ((Number) request.get("numberOfStops")).intValue() : 4;
+                deliveryStops = localDeliveryService.generateMockDeliveryStops(cityId, numberOfStops);
+            }
 
             List<LocalDeliveryStop> route = localDeliveryService.calculateOptimalRoute(
                     cityId, warehouse, deliveryStops, algorithm
             );
 
             double totalDistance = localDeliveryService.calculateTotalDistance(route);
+            int estimatedDuration = (int) (totalDistance * 1.5); // Mock duration calculation
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("cityId", cityId);
             response.put("warehouse", warehouse);
             response.put("deliveryStops", deliveryStops);
-            response.put("route", route);
+            response.put("sequence", localDeliveryService.getRouteSequence(route));
             response.put("totalDistance", totalDistance);
-            response.put("stopCount", route.size() - 2); // excluding warehouse start/end
-            response.put("algorithm", "GREEDY_NEAREST_NEIGHBOR");
+            response.put("estimatedDuration", estimatedDuration);
+            
+            // Mock OSRM-like path structure for frontend compatibility
+            Map<String, Object> routeDetails = new HashMap<>();
+            routeDetails.put("path", route.stream().map(s -> List.of(s.getLatitude(), s.getLongitude())).toList());
+            routeDetails.put("segments", List.of()); // could be populated later
+            response.put("route", routeDetails);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

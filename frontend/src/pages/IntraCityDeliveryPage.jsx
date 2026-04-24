@@ -1,146 +1,300 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, MapPin, Loader2 } from 'lucide-react';
-import IntraCityMapSimulator from '../components/IntraCityMapSimulator';
-import { useSimulationContext } from '../context/SimulationContext';
-import { CITY_DATA } from '../data/cityData';
+import { ChevronDown, MapPin, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import IntraCityMapSimulator from '../components/IntraCityMapSimulator';
+import AddressSelectionPanel from '../components/AddressSelectionPanel';
+import { useIntraCitySelection } from '../hooks/useIntraCitySelection';
+import { useSimulationContext } from '../context/SimulationContext';
 
 const API_BASE = 'http://localhost:8081/api';
 
+/**
+ * Validate and transform API response for IntraCityMapSimulator
+ */
+const validateAndTransformRoute = (response) => {
+  // Validate basic structure
+  if (!response || typeof response !== 'object') {
+    throw new Error('Invalid response structure');
+  }
+
+  if (response.status !== 'success') {
+    throw new Error(response.message || 'API returned error status');
+  }
+
+  // Validate route.path
+  if (!response.route || !Array.isArray(response.route.path)) {
+    throw new Error('Invalid route path: expected array of coordinates');
+  }
+
+  if (response.route.path.length < 2) {
+    throw new Error(`Invalid route path: needs at least 2 points, got ${response.route.path.length}`);
+  }
+
+  // Validate all path points are [lat, lng] pairs
+  const invalidPoints = response.route.path.filter(
+    p => !Array.isArray(p) || p.length !== 2 || 
+         typeof p[0] !== 'number' || typeof p[1] !== 'number'
+  );
+  if (invalidPoints.length > 0) {
+    throw new Error(`Invalid route: ${invalidPoints.length} points are malformed coordinates`);
+  }
+
+  // Validate sequence
+  if (!Array.isArray(response.sequence)) {
+    throw new Error('Invalid sequence: expected array of stops');
+  }
+
+  if (response.sequence.length !== 5) {
+    throw new Error(`Invalid sequence: expected 5 stops (warehouse + 4 deliveries), got ${response.sequence.length}`);
+  }
+
+  // Validate numeric fields
+  if (typeof response.totalDistance !== 'number' || response.totalDistance <= 0) {
+    throw new Error(`Invalid totalDistance: expected positive number, got ${response.totalDistance}`);
+  }
+
+  if (typeof response.estimatedDuration !== 'number' || response.estimatedDuration <= 0) {
+    throw new Error(`Invalid estimatedDuration: expected positive number, got ${response.estimatedDuration}`);
+  }
+
+  // Transform to component-friendly format
+  return {
+    routePath: response.route.path,           // Array of [lat, lng]
+    sequence: response.sequence,              // Full stop sequence [warehouse, stop1, stop2, stop3, stop4]
+    totalDistance: response.totalDistance,    // km
+    estimatedDuration: response.estimatedDuration, // seconds
+    warehouse: response.sequence[0],
+    deliveryStops: response.sequence.slice(1, 5),
+    stops: {
+      warehouse: response.sequence[0],
+      delivery1: response.sequence[1],
+      delivery2: response.sequence[2],
+      delivery3: response.sequence[3],
+      delivery4: response.sequence[4]
+    }
+  };
+};
+
 export default function IntraCityDeliveryPage() {
-  const navigate = useNavigate();
   const { setLastIntraCityData } = useSimulationContext();
-  const [cities, setCities] = useState([]);
-  const [selectedCityId, setSelectedCityId] = useState('');
+  const {
+    selectedCity,
+    selectedWarehouse,
+    deliveryAddresses,
+    warehouseOptions,
+    cityOptions,
+    selectCity,
+    selectWarehouse,
+    addDeliveryAddress,
+    removeDeliveryAddress,
+    moveDeliveryAddress,
+    isReadyForSimulation,
+    clearSelections,
+  } = useIntraCitySelection();
+
   const [simulationData, setSimulationData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch available cities on mount
   useEffect(() => {
-    const loadCities = () => {
-      const sortedCities = Object.values(CITY_DATA).sort((a, b) => a.name.localeCompare(b.name));
-      setCities(sortedCities);
-      // Pre-select Nagpur (NAG)
-      handleCitySelect('NAG');
-    };
-    loadCities();
-  }, []);
+    setSimulationData(null);
+    setError(null);
+  }, [selectedCity?.id, selectedWarehouse?.id, deliveryAddresses.length]);
 
-  const handleCitySelect = async (cityId) => {
-    setSelectedCityId(cityId);
+  const handleCitySelect = (cityId) => {
+    selectCity(cityId);
+  };
+
+  const handleStartSimulation = async () => {
+    if (!selectedCity || !selectedWarehouse || deliveryAddresses.length !== 4) {
+      setError('Please select a warehouse and exactly 4 delivery addresses.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    try {
-      const city = CITY_DATA[cityId];
-      if (!city) throw new Error("City data not found");
 
+    try {
       const response = await axios.post(`${API_BASE}/local-delivery/calculate-city-route`, {
-        cityId: cityId,
-        numberOfStops: 4,
-        warehouse: city.warehouse,
-        deliveryStops: city.deliveryAddresses,
-        algorithmType: 'AStar'
+        cityId: selectedCity.id,
+        warehouseId: selectedWarehouse.id,
+        warehouse: {
+          ...selectedWarehouse,
+          latitude: selectedWarehouse.lat,
+          longitude: selectedWarehouse.lng,
+        },
+        deliveryStops: deliveryAddresses.map((address) => ({
+          ...address,
+          latitude: address.lat,
+          longitude: address.lng,
+        })),
+        algorithmType: 'GREEDY_TSP',
       });
 
-      if (response.data.status === 'success') {
-        const data = response.data;
-        setSimulationData(data);
-        
-        // Save to localStorage for Phase 3 Bridge
-        localStorage.setItem('logicore_phase2', JSON.stringify({
-          cityId: city.id,
-          cityName: city.name,
-          nodeId: city.nodeId,
-          warehouse: city.warehouse,
-          deliveryAddresses: city.deliveryAddresses
-        }));
+      // Validate and transform response
+      const transformedData = validateAndTransformRoute(response.data);
+      setSimulationData(transformedData);
 
-        // Write to SimulationContext (fallback)
-        setLastIntraCityData({
-          cityId: city.id,
-          cityName: city.name,
-          nodeId: city.nodeId,
-          warehouse: city.warehouse,
-          deliveryAddresses: city.deliveryAddresses
-        });
-      }
+      // Persist data for Phase 3 handoff
+      const persistedData = {
+        cityId: selectedCity.id,
+        cityName: selectedCity.name,
+        warehouseId: selectedWarehouse.id,
+        warehouse: {
+          name: selectedWarehouse.name,
+          lat: selectedWarehouse.lat,
+          lng: selectedWarehouse.lng,
+          address: selectedWarehouse.address
+        },
+        deliveryAddresses: deliveryAddresses.map((addr, idx) => ({
+          index: idx + 1,
+          ...addr
+        })),
+        calculatedRoute: {
+          sequence: transformedData.sequence,
+          totalDistance: transformedData.totalDistance,
+          estimatedDuration: transformedData.estimatedDuration,
+          path: transformedData.routePath
+        }
+      };
+
+      localStorage.setItem('logicore_phase2', JSON.stringify(persistedData));
+      setLastIntraCityData(persistedData);
     } catch (err) {
-      setError('Could not calculate delivery route for the selected city.');
+      // Detailed error messages
+      const errorMessage = err.response?.data?.message || 
+                          err.message || 
+                          'Could not calculate the delivery route. Please try again.';
+      setError(errorMessage);
+      console.error('API Error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleClearAll = () => {
+    clearSelections();
+    setSimulationData(null);
+    setError(null);
+  };
+
+  const mapRoute = useMemo(() => {
+    if (simulationData?.sequence) return simulationData.sequence;
+    return selectedWarehouse ? [selectedWarehouse, ...deliveryAddresses] : [];
+  }, [simulationData, selectedWarehouse, deliveryAddresses]);
+
+  const mapDistance = useMemo(() => {
+    return simulationData?.totalDistance || 0;
+  }, [simulationData]);
+
   return (
-    <div className="w-full h-[calc(100vh-140px)] flex flex-col overflow-hidden bg-white rounded-3xl shadow-sm border border-slate-200">
-      {/* City Selector Header (Integrated into content area) */}
-      <div className="bg-white px-8 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+    <div className="w-full h-[calc(100vh-140px)] flex flex-col overflow-hidden bg-slate-50 rounded-3xl shadow-sm border border-slate-200">
+      {error && (
+        <div className="bg-red-50 border-b border-red-200 p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-black text-red-900">Error</p>
+            <p className="text-xs text-red-700">{error}</p>
+          </div>
+        </div>
+      )}
+      
+      <div className="bg-white px-8 py-5 border-b border-slate-100 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-50 rounded-lg">
+          <div className="p-3 bg-indigo-50 rounded-2xl">
             <MapPin className="w-5 h-5 text-indigo-600" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Operation Hub</h3>
-            <p className="text-xs text-slate-400 font-medium tracking-tight">Select city for last-mile simulation</p>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Intra-city Route Planner</h3>
+            <p className="text-xs text-slate-400 font-medium tracking-tight">Pick city, warehouse, and delivery stops to simulate live last-mile routing.</p>
           </div>
         </div>
 
-        <div className="relative group">
-          <select
-            value={selectedCityId}
-            onChange={(e) => handleCitySelect(e.target.value)}
-            disabled={loading}
-            className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 px-6 py-2.5 pr-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer disabled:opacity-50 transition-all font-bold text-sm"
-          >
-            {cities.map(city => (
-              <option key={city.id} value={city.id}>
-                {city.name} ({city.id})
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:scale-110 transition-transform" />
+        <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-3">
+          <div className="relative">
+            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">City selector</label>
+            <select
+              value={selectedCity?.id || ''}
+              onChange={(e) => handleCitySelect(e.target.value)}
+              className="appearance-none w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 pr-10 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            >
+              {cityOptions.map((city) => (
+                <option key={city.id} value={city.id}>
+                  {city.name} ({city.id})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          </div>
+
+          <div className="relative">
+            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">Warehouse selector</label>
+            <select
+              value={selectedWarehouse?.id || ''}
+              onChange={(e) => selectWarehouse(e.target.value)}
+              disabled={!selectedCity}
+              className="appearance-none w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 pr-10 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {warehouseOptions.map((warehouse) => (
+                <option key={warehouse.id} value={warehouse.id}>
+                  {warehouse.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Selection summary</p>
+            <p className="mt-3 text-sm font-black text-slate-900 leading-snug">
+              {selectedWarehouse ? selectedWarehouse.name : 'No warehouse selected'}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              {deliveryAddresses.length} of 4 delivery addresses chosen
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 relative overflow-hidden bg-slate-100">
-        {loading ? (
-          <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-md flex items-center justify-center">
-            <div className="text-center">
-              <div className="relative w-24 h-24 mx-auto mb-6">
-                <div className="absolute inset-0 border-4 border-indigo-100 rounded-full" />
-                <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin" />
-                <Loader2 className="absolute inset-0 m-auto w-8 h-8 text-indigo-600 animate-pulse" />
-              </div>
-              <h3 className="text-xl font-black text-slate-800 tracking-tighter">Optimizing Logistics</h3>
-              <p className="text-sm text-slate-500 font-medium">Computing OSRM road geometry & stop sequence...</p>
-            </div>
-          </div>
-        ) : error ? (
-          <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md border border-red-50">
-               <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-3xl">⚠️</span>
-               </div>
-               <h3 className="text-2xl font-black text-slate-800 mb-3 tracking-tighter">Connection Failed</h3>
-               <p className="text-slate-500 mb-8 font-medium leading-relaxed">{error}</p>
-               <button 
-                  onClick={() => window.location.reload()}
-                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition shadow-xl shadow-indigo-100"
-               >
-                  Retry Connection
-               </button>
-            </div>
-          </div>
-        ) : simulationData && (
-          <IntraCityMapSimulator
-            warehouse={simulationData.warehouse}
-            deliveryStops={simulationData.deliveryStops}
-            route={simulationData.route}
-            totalDistance={simulationData.totalDistance}
+      <div className="flex flex-1 overflow-hidden p-6 gap-6">
+        <div className="w-full max-w-[520px] flex-shrink-0">
+          <AddressSelectionPanel
+            selectedCity={selectedCity}
+            selectedWarehouse={selectedWarehouse}
+            warehouseOptions={warehouseOptions}
+            deliveryAddresses={deliveryAddresses}
+            selectWarehouse={selectWarehouse}
+            addDeliveryAddress={addDeliveryAddress}
+            removeDeliveryAddress={removeDeliveryAddress}
+            moveDeliveryAddress={moveDeliveryAddress}
+            isReadyForSimulation={isReadyForSimulation}
+            onStartSimulation={handleStartSimulation}
+            onClearSelections={handleClearAll}
+            loading={loading}
           />
-        )}
+        </div>
+
+        <div className="flex-1 min-w-0 rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          {selectedWarehouse ? (
+            <IntraCityMapSimulator
+              warehouse={selectedWarehouse}
+              deliveryAddresses={deliveryAddresses}
+              shouldStartAnimation={!!simulationData}
+              simulationData={simulationData}
+            />
+          ) : (
+            <div className="flex h-full min-h-[640px] flex-col items-center justify-center gap-4 bg-slate-100 px-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-indigo-50 text-indigo-600 shadow-inner">
+                <MapPin className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900">Choose a city and warehouse to preview the map.</h3>
+              <p className="max-w-md text-sm text-slate-500">
+                Once you have selected a city and warehouse, add four delivery addresses to visualize the route preview and launch the live simulation.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

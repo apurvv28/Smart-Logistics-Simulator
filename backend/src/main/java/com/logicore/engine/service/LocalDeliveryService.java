@@ -31,35 +31,35 @@ public class LocalDeliveryService {
     private static final Map<String, Map<String, Object>> CITY_MASTER = new HashMap<>();
 
     static {
-        addCity("DEL", "Delhi", 28.7041, 77.1025, "Delhi Central Warehouse");
-        addCity("MUM", "Mumbai", 19.0760, 72.8777, "Mumbai Logistics Hub");
-        addCity("BLR", "Bangalore", 12.9716, 77.5946, "Bengaluru Distribution Center");
-        addCity("HYD", "Hyderabad", 17.3850, 78.4867, "Hyderabad Hub");
-        addCity("CHN", "Chennai", 13.0827, 80.2707, "Chennai Port Warehouse");
-        addCity("KOL", "Kolkata", 22.5726, 88.3639, "Kolkata East Terminal");
-        addCity("PUN", "Pune", 18.5204, 73.8567, "Pune Regional Hub");
-        addCity("AHM", "Ahmedabad", 23.0225, 72.5714, "Ahmedabad Logistics Park");
-        addCity("JAI", "Jaipur", 26.9124, 75.7873, "Jaipur Pink City Hub");
-        addCity("LKO", "Lucknow", 26.8467, 80.9462, "Lucknow Hub");
-        addCity("NAG", "Nagpur", 21.1458, 79.0882, "Nagpur Central India Hub");
-        addCity("IND", "Indore", 22.7196, 75.8577, "Indore Hub");
-        addCity("BHO", "Bhopal", 23.2599, 77.4126, "Bhopal Hub");
-        addCity("SUR", "Surat", 21.1702, 72.8311, "Surat Diamond Hub");
-        addCity("VAD", "Vadodara", 22.3072, 73.1812, "Vadodara Logistics Hub");
-        addCity("COI", "Coimbatore", 11.0168, 76.9558, "Coimbatore Hub");
-        addCity("VIS", "Visakhapatnam", 17.6868, 83.2185, "Vizag Hub");
-        addCity("PAT", "Patna", 25.5941, 85.1376, "Patna Hub");
-        addCity("LUD", "Ludhiana", 30.9010, 75.8573, "Ludhiana Hub");
-        addCity("AGR", "Agra", 27.1767, 78.0081, "Agra Hub");
+        addCity("DEL", "Delhi", 28.7041, 77.1025, Arrays.asList(
+            new LocalDeliveryStop("DEL-NORTH", "North Delhi Warehouse", "Shalimar Bagh Logistics Depot", 28.7249, 77.1501, "warehouse"),
+            new LocalDeliveryStop("DEL-SOUTH", "South Delhi Center", "Saket Delivery Hub", 28.5244, 77.2208, "warehouse")
+        ));
+        addCity("MUM", "Mumbai", 19.0760, 72.8777, Arrays.asList(
+            new LocalDeliveryStop("MUM-EAST", "Navi Mumbai Warehouse", "Vashi Logistics Park", 19.0620, 73.0300, "warehouse"),
+            new LocalDeliveryStop("MUM-WEST", "Andheri Fulfillment", "Andheri West Distribution Hub", 19.1187, 72.8458, "warehouse")
+        ));
+        addCity("BLR", "Bangalore", 12.9716, 77.5946, Arrays.asList(
+            new LocalDeliveryStop("BLR-WFD", "Whitefield fulfillment", "Whitefield Distribution Hub", 12.9719, 77.7411, "warehouse"),
+            new LocalDeliveryStop("BLR-YSP", "Yeshwanthpur Warehouse", "Yeshwanthpur Logistics Center", 13.0305, 77.5560, "warehouse")
+        ));
+        addCity("PUN", "Pune", 18.5204, 73.8567, Arrays.asList(
+            new LocalDeliveryStop("PUNE_HQ", "Pune Headquarters", "Hadapsar, Pune", 18.5204, 73.8567, "warehouse"),
+            new LocalDeliveryStop("PUN-HDP", "Hadapsar Warehouse", "Hadapsar Logistics Park", 18.5111, 73.9367, "warehouse")
+        ));
+        addCity("HYD", "Hyderabad", 17.3850, 78.4867, Arrays.asList(
+            new LocalDeliveryStop("HYD-GCB", "Gachibowli Hub", "Gachibowli Logistics Yard", 17.4435, 78.3772, "warehouse")
+        ));
+        // Add other cities as needed...
     }
 
-    private static void addCity(String code, String name, double lat, double lng, String whName) {
+    private static void addCity(String code, String name, double lat, double lng, List<LocalDeliveryStop> warehouses) {
         Map<String, Object> city = new HashMap<>();
         city.put("cityId", code);
         city.put("cityName", name);
         city.put("latitude", lat);
         city.put("longitude", lng);
-        city.put("warehouseName", whName);
+        city.put("warehouses", warehouses);
         CITY_MASTER.put(code, city);
     }
 
@@ -102,18 +102,39 @@ public class LocalDeliveryService {
         return stops;
     }
 
-    public LocalDeliveryStop getWarehouseForCity(String cityId) {
+    @SuppressWarnings("unchecked")
+    public List<LocalDeliveryStop> getWarehousesForCity(String cityId) {
         Map<String, Object> city = CITY_MASTER.get(cityId);
-        if (city == null) return null;
+        if (city == null) return new ArrayList<>();
+        return (List<LocalDeliveryStop>) city.getOrDefault("warehouses", new ArrayList<LocalDeliveryStop>());
+    }
 
-        LocalDeliveryStop wh = new LocalDeliveryStop();
-        wh.setId(cityId + "-WH-001");
-        wh.setName((String) city.get("warehouseName"));
-        wh.setLatitude((double) city.get("latitude"));
-        wh.setLongitude((double) city.get("longitude"));
-        wh.setAddress("Logistics Hub, " + city.get("cityName"));
-        wh.setType("warehouse");
-        return wh;
+    public LocalDeliveryStop getWarehouseById(String warehouseId) {
+        for (Map<String, Object> city : CITY_MASTER.values()) {
+            @SuppressWarnings("unchecked")
+            List<LocalDeliveryStop> warehouses = (List<LocalDeliveryStop>) city.get("warehouses");
+            if (warehouses != null) {
+                for (LocalDeliveryStop wh : warehouses) {
+                    if (wh.getId().equals(warehouseId)) return wh;
+                }
+            }
+        }
+        return null;
+    }
+
+    public LocalDeliveryStop getWarehouseForCity(String cityId) {
+        List<LocalDeliveryStop> warehouses = getWarehousesForCity(cityId);
+        return warehouses.isEmpty() ? null : warehouses.get(0);
+    }
+
+    public List<Integer> getRouteSequence(List<LocalDeliveryStop> route) {
+        // This assumes the sequence return to the indices of the original stops array
+        // but for simulation, we can just return a simple list of indices [0, 1, 2, ..., 0]
+        List<Integer> sequence = new ArrayList<>();
+        for (int i = 0; i < route.size(); i++) {
+            sequence.add(i);
+        }
+        return sequence;
     }
 
     /**
