@@ -178,7 +178,7 @@ export default function IntraCityDeliveryPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden p-6 gap-6">
-        <div className="w-full max-w-[520px] flex-shrink-0">
+        <div className="w-full max-w-[320px] flex-shrink-0">
           <AddressSelectionPanel
             selectedCity={selectedCity}
             selectedWarehouse={selectedWarehouse}

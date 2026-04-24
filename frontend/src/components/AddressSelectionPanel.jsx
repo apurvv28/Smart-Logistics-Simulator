@@ -251,30 +251,7 @@ export default function AddressSelectionPanel({
         )}
       </div>
 
-      <div className="p-8 border-t border-slate-100 bg-white shadow-[0_-10px_30px_rgba(0,0,0,0.02)]">
-        <button
-          type="button"
-          onClick={onStartSimulation}
-          disabled={!isReadyForSimulation() || loading}
-          className={`w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] transition-all active:scale-[0.98] shadow-2xl flex items-center justify-center gap-3 ${
-            isReadyForSimulation() 
-              ? 'bg-indigo-600 text-white shadow-indigo-600/30 hover:bg-indigo-700 hover:-translate-y-1' 
-              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-          }`}
-        >
-          {loading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>
-              {isReadyForSimulation() ? <CheckCircle2 className="w-5 h-5" /> : null}
-              {isReadyForSimulation() ? 'Start Simulation' : `Disabled until 4 stops`}
-            </>
-          )}
-        </button>
-        <p className="mt-4 text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-           {isReadyForSimulation() ? 'Route optimization ready' : 'Pick exactly 4 addresses to launch'}
-        </p>
-      </div>
+
     </div>
   );
 }
