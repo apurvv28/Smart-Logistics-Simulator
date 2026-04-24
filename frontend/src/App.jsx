@@ -1,5 +1,5 @@
 import { BrowserRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { Compass, Home, Sparkles } from 'lucide-react';
+import { Compass, Home } from 'lucide-react';
 import { useCampaignState } from './hooks/useCampaignState';
 import SimulationLandingPage from './pages/SimulationLandingPage';
 import InterCitySimulationPage from './pages/InterCitySimulationPage';
@@ -18,10 +18,6 @@ function TopNav() {
           <Compass size={20} />
         </div>
         Logicore Simulation Engine
-        <span className="hidden md:inline-flex items-center gap-1 text-[10px] tracking-widest uppercase px-2 py-1 border border-[#d0b26d] bg-[#fff8e7] text-[#9a7318] ml-1">
-          <Sparkles size={11} />
-          Professional Theme
-        </span>
       </div>
       {!isLandingPage && (
         <NavLink
