@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, MapPin, AlertCircle } from 'lucide-react';
+import { ChevronDown, MapPin } from 'lucide-react';
 import axios from 'axios';
 import IntraCityMapSimulator from '../components/IntraCityMapSimulator';
 import AddressSelectionPanel from '../components/AddressSelectionPanel';
@@ -8,73 +8,6 @@ import { useIntraCitySelection } from '../hooks/useIntraCitySelection';
 import { useSimulationContext } from '../context/SimulationContext';
 
 const API_BASE = 'http://localhost:8081/api';
-
-/**
- * Validate and transform API response for IntraCityMapSimulator
- */
-const validateAndTransformRoute = (response) => {
-  // Validate basic structure
-  if (!response || typeof response !== 'object') {
-    throw new Error('Invalid response structure');
-  }
-
-  if (response.status !== 'success') {
-    throw new Error(response.message || 'API returned error status');
-  }
-
-  // Validate route.path
-  if (!response.route || !Array.isArray(response.route.path)) {
-    throw new Error('Invalid route path: expected array of coordinates');
-  }
-
-  if (response.route.path.length < 2) {
-    throw new Error(`Invalid route path: needs at least 2 points, got ${response.route.path.length}`);
-  }
-
-  // Validate all path points are [lat, lng] pairs
-  const invalidPoints = response.route.path.filter(
-    p => !Array.isArray(p) || p.length !== 2 || 
-         typeof p[0] !== 'number' || typeof p[1] !== 'number'
-  );
-  if (invalidPoints.length > 0) {
-    throw new Error(`Invalid route: ${invalidPoints.length} points are malformed coordinates`);
-  }
-
-  // Validate sequence
-  if (!Array.isArray(response.sequence)) {
-    throw new Error('Invalid sequence: expected array of stops');
-  }
-
-  if (response.sequence.length !== 5) {
-    throw new Error(`Invalid sequence: expected 5 stops (warehouse + 4 deliveries), got ${response.sequence.length}`);
-  }
-
-  // Validate numeric fields
-  if (typeof response.totalDistance !== 'number' || response.totalDistance <= 0) {
-    throw new Error(`Invalid totalDistance: expected positive number, got ${response.totalDistance}`);
-  }
-
-  if (typeof response.estimatedDuration !== 'number' || response.estimatedDuration <= 0) {
-    throw new Error(`Invalid estimatedDuration: expected positive number, got ${response.estimatedDuration}`);
-  }
-
-  // Transform to component-friendly format
-  return {
-    routePath: response.route.path,           // Array of [lat, lng]
-    sequence: response.sequence,              // Full stop sequence [warehouse, stop1, stop2, stop3, stop4]
-    totalDistance: response.totalDistance,    // km
-    estimatedDuration: response.estimatedDuration, // seconds
-    warehouse: response.sequence[0],
-    deliveryStops: response.sequence.slice(1, 5),
-    stops: {
-      warehouse: response.sequence[0],
-      delivery1: response.sequence[1],
-      delivery2: response.sequence[2],
-      delivery3: response.sequence[3],
-      delivery4: response.sequence[4]
-    }
-  };
-};
 
 export default function IntraCityDeliveryPage() {
   const { setLastIntraCityData } = useSimulationContext();
@@ -132,42 +65,40 @@ export default function IntraCityDeliveryPage() {
         algorithmType: 'GREEDY_TSP',
       });
 
-      // Validate and transform response
-      const transformedData = validateAndTransformRoute(response.data);
-      setSimulationData(transformedData);
+      if (response.data.status === 'success') {
+        const data = response.data;
+        setSimulationData(data);
 
-      // Persist data for Phase 3 handoff
-      const persistedData = {
-        cityId: selectedCity.id,
-        cityName: selectedCity.name,
-        warehouseId: selectedWarehouse.id,
-        warehouse: {
-          name: selectedWarehouse.name,
-          lat: selectedWarehouse.lat,
-          lng: selectedWarehouse.lng,
-          address: selectedWarehouse.address
-        },
-        deliveryAddresses: deliveryAddresses.map((addr, idx) => ({
-          index: idx + 1,
-          ...addr
-        })),
-        calculatedRoute: {
-          sequence: transformedData.sequence,
-          totalDistance: transformedData.totalDistance,
-          estimatedDuration: transformedData.estimatedDuration,
-          path: transformedData.routePath
-        }
-      };
+        // Persist data for Phase 3 handoff
+        const persistedData = {
+          cityId: selectedCity.id,
+          cityName: selectedCity.name,
+          warehouseId: selectedWarehouse.id,
+          warehouse: {
+            name: selectedWarehouse.name,
+            lat: selectedWarehouse.lat,
+            lng: selectedWarehouse.lng,
+            address: selectedWarehouse.address
+          },
+          deliveryAddresses: deliveryAddresses.map((addr, idx) => ({
+            index: idx + 1,
+            ...addr
+          })),
+          calculatedRoute: {
+            sequence: data.sequence,
+            totalDistance: data.totalDistance,
+            estimatedDuration: data.estimatedDuration,
+            path: data.route.path
+          }
+        };
 
-      localStorage.setItem('logicore_phase2', JSON.stringify(persistedData));
-      setLastIntraCityData(persistedData);
+        localStorage.setItem('logicore_phase2', JSON.stringify(persistedData));
+        setLastIntraCityData(persistedData);
+      } else {
+        throw new Error(response.data.message || 'Unable to calculate route.');
+      }
     } catch (err) {
-      // Detailed error messages
-      const errorMessage = err.response?.data?.message || 
-                          err.message || 
-                          'Could not calculate the delivery route. Please try again.';
-      setError(errorMessage);
-      console.error('API Error:', err);
+      setError('Could not calculate the delivery route. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -180,8 +111,7 @@ export default function IntraCityDeliveryPage() {
   };
 
   const mapRoute = useMemo(() => {
-    if (simulationData?.sequence) return simulationData.sequence;
-    return selectedWarehouse ? [selectedWarehouse, ...deliveryAddresses] : [];
+    return simulationData?.route || (selectedWarehouse ? [selectedWarehouse, ...deliveryAddresses] : []);
   }, [simulationData, selectedWarehouse, deliveryAddresses]);
 
   const mapDistance = useMemo(() => {
@@ -190,16 +120,6 @@ export default function IntraCityDeliveryPage() {
 
   return (
     <div className="w-full h-[calc(100vh-140px)] flex flex-col overflow-hidden bg-slate-50 rounded-3xl shadow-sm border border-slate-200">
-      {error && (
-        <div className="bg-red-50 border-b border-red-200 p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-black text-red-900">Error</p>
-            <p className="text-xs text-red-700">{error}</p>
-          </div>
-        </div>
-      )}
-      
       <div className="bg-white px-8 py-5 border-b border-slate-100 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-indigo-50 rounded-2xl">
@@ -280,8 +200,9 @@ export default function IntraCityDeliveryPage() {
             <IntraCityMapSimulator
               warehouse={selectedWarehouse}
               deliveryAddresses={deliveryAddresses}
+              route={mapRoute}
+              totalDistance={mapDistance}
               shouldStartAnimation={!!simulationData}
-              simulationData={simulationData}
             />
           ) : (
             <div className="flex h-full min-h-[640px] flex-col items-center justify-center gap-4 bg-slate-100 px-8 text-center">
