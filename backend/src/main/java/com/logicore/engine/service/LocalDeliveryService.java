@@ -23,6 +23,11 @@ import java.util.*;
  */
 @Service
 public class LocalDeliveryService {
+    private final OverpassRoadNetworkService overpassRoadNetworkService;
+
+    public LocalDeliveryService(OverpassRoadNetworkService overpassRoadNetworkService) {
+        this.overpassRoadNetworkService = overpassRoadNetworkService;
+    }
 
     // Haversine constant - Earth's radius in kilometers
     private static final double EARTH_RADIUS_KM = 6371.0;
@@ -257,31 +262,11 @@ public class LocalDeliveryService {
             return route;
         }
 
-        List<LocalDeliveryStop> route = new ArrayList<>();
-        route.add(warehouse);
-
-        // Apply Greedy TSP (Dijkstra-based nearest neighbor logic) to compute optimal order for deliveries
-        // greedyNearestNeighbor() expects warehouse at index 0
         List<LocalDeliveryStop> allStops = new ArrayList<>();
         allStops.add(warehouse);
         allStops.addAll(deliveryAddresses);
 
-        // Compute optimized order
-        List<LocalDeliveryStop> optimizedOrder = greedyNearestNeighbor(allStops);
-
-        // Extract just the stops (skip warehouse at start, skip warehouse at end)
-        if (optimizedOrder.size() > 2) {
-            // Add stops 1 to n-1 (skip index 0 which is warehouse, skip last which is return to warehouse)
-            route.addAll(optimizedOrder.subList(1, optimizedOrder.size() - 1));
-        } else if (optimizedOrder.size() == 2) {
-            // Single stop case - add it
-            route.add(optimizedOrder.get(1));
-        }
-
-        // Always return to warehouse at the end
-        route.add(warehouse);
-
-        return route;
+        return buildRouteUsingOverpassIfAvailable(allStops);
     }
 
     /**
@@ -373,13 +358,12 @@ public class LocalDeliveryService {
                 throw new IllegalArgumentException("No delivery addresses provided");
             }
 
-            // Build complete list: warehouse + delivery addresses
             List<LocalDeliveryStop> allStops = new ArrayList<>();
             allStops.add(warehouse);
             allStops.addAll(deliveryAddresses);
 
-            // Calculate optimal route using Greedy Nearest-Neighbor TSP
-            List<LocalDeliveryStop> optimizedRoute = greedyNearestNeighbor(allStops);
+            // Optimize with Overpass road network (fallback handled internally)
+            List<LocalDeliveryStop> optimizedRoute = buildRouteUsingOverpassIfAvailable(allStops);
 
             // Calculate total distance for the route
             double totalDistance = calculateTotalDistance(optimizedRoute);
@@ -404,5 +388,56 @@ public class LocalDeliveryService {
             response.setAlgorithm("UNKNOWN");
             return response;
         }
+    }
+
+    private List<LocalDeliveryStop> buildRouteUsingOverpassIfAvailable(List<LocalDeliveryStop> allStops) {
+        if (allStops.size() <= 1) {
+            return new ArrayList<>(allStops);
+        }
+
+        double[][] roadMatrix = overpassRoadNetworkService.buildRoadDistanceMatrix(allStops);
+        List<LocalDeliveryStop> optimizedOrder = nearestNeighborByMatrix(allStops, roadMatrix);
+
+        if (optimizedOrder == null || optimizedOrder.size() < 2) {
+            optimizedOrder = greedyNearestNeighbor(allStops);
+        }
+        return optimizedOrder;
+    }
+
+    private List<LocalDeliveryStop> nearestNeighborByMatrix(List<LocalDeliveryStop> allStops, double[][] matrix) {
+        int n = allStops.size();
+        if (matrix == null || matrix.length != n) return null;
+
+        List<LocalDeliveryStop> route = new ArrayList<>();
+        boolean[] visited = new boolean[n];
+        int current = 0; // warehouse
+        visited[current] = true;
+        route.add(allStops.get(current));
+
+        for (int step = 1; step < n; step++) {
+            int bestIndex = -1;
+            double bestDistance = Double.POSITIVE_INFINITY;
+            for (int i = 1; i < n; i++) { // only delivery stops
+                if (visited[i]) continue;
+                double d = matrix[current][i];
+                if (Double.isFinite(d) && d < bestDistance) {
+                    bestDistance = d;
+                    bestIndex = i;
+                }
+            }
+
+            // Matrix not usable (disconnected graph or fetch failure)
+            if (bestIndex < 0) {
+                return null;
+            }
+
+            visited[bestIndex] = true;
+            current = bestIndex;
+            route.add(allStops.get(current));
+        }
+
+        // Return to warehouse
+        route.add(allStops.get(0));
+        return route;
     }
 }

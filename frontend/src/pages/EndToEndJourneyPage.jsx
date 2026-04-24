@@ -1,25 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Loader2, 
-  MapPin, 
-  Activity, 
-  CheckCircle, 
-  Navigation, 
-  Package, 
-  ChevronRight,
-  Settings,
-  Zap,
-  RotateCcw,
-  Globe,
-  Play,
-  Pause,
-  Truck
-} from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, Pause, Play, RotateCcw } from 'lucide-react';
 import IntraCityMapSimulator from '../components/IntraCityMapSimulator';
 import { useEndToEndState } from '../hooks/useEndToEndState';
 import { CITY_DATA } from '../data/cityData';
+import { searchAddressesInCity } from '../services/geocodingService';
 import 'leaflet/dist/leaflet.css';
 
 const MACRO_NODES = {
@@ -55,327 +40,353 @@ const MACRO_NODES = {
 export default function EndToEndJourneyPage() {
   const navigate = useNavigate();
   const {
-    journey,
+    formData,
+    updateForm,
+    cityOptions,
     loading,
     error,
     statusMessage,
     currentPhase,
-    showMicroPhase,
     overallProgress,
     isPaused,
-    isDelivering,
-    currentDeliveryStop,
-    sessionData,
-    initiateJourney,
-    startAnimation,
+    macroRoute,
+    macroCurrentStep,
+    macroTotalDistance,
+    microSimulationData,
+    microWarehouse,
+    microDeliveryAddresses,
+    microTotalDistance,
+    startJourney,
     pauseAnimation,
     resumeAnimation,
-    resetJourney
+    handleMicroComplete,
+    resetJourney,
   } = useEndToEndState();
 
-  const [macroAlgorithm, setMacroAlgorithm] = useState('Bellman-Ford');
-  const [microAlgorithm, setMicroAlgorithm] = useState('A*');
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressError, setAddressError] = useState('');
 
-  const handleLaunchJourney = async () => {
-    await initiateJourney(macroAlgorithm, microAlgorithm);
+  const sourceCity = useMemo(
+    () => CITY_DATA[formData.skuCityId] || null,
+    [formData.skuCityId]
+  );
+  const destinationCity = useMemo(
+    () => CITY_DATA[formData.customerCityId] || null,
+    [formData.customerCityId]
+  );
+  const inMacroPhase = ['INITIATING', 'MACRO_TRANSIT', 'MACRO_COMPLETE'].includes(currentPhase);
+  const inMicroPhase = ['MICRO_LOADING', 'MICRO_TRANSIT', 'DELIVERED'].includes(currentPhase);
+  const normalizedMicroWarehouse = useMemo(() => {
+    if (!microWarehouse) return null;
+    return {
+      ...microWarehouse,
+      latitude: microWarehouse.latitude ?? microWarehouse.lat,
+      longitude: microWarehouse.longitude ?? microWarehouse.lng,
+    };
+  }, [microWarehouse]);
+  const normalizedMicroRoute = useMemo(() => {
+    if (!microSimulationData) return [];
+    if (Array.isArray(microSimulationData.route)) return microSimulationData.route;
+    if (Array.isArray(microSimulationData.route?.path)) return microSimulationData.route.path;
+
+    if (normalizedMicroWarehouse && microDeliveryAddresses.length) {
+      return [normalizedMicroWarehouse, ...microDeliveryAddresses];
+    }
+    return [];
+  }, [microSimulationData, normalizedMicroWarehouse, microDeliveryAddresses]);
+
+  const handleAddressSearch = async () => {
+    setAddressError('');
+    if (!destinationCity) {
+      setAddressError('Select customer city first.');
+      return;
+    }
+    if (!formData.customerAddress || formData.customerAddress.trim().length < 3) {
+      setAddressError('Type at least 3 characters for customer address.');
+      return;
+    }
+    setAddressLoading(true);
+    const results = await searchAddressesInCity(formData.customerAddress, destinationCity.name, 6);
+    setAddressSuggestions(results);
+    if (!results.length) {
+      setAddressError('No address suggestions found. Try a nearby landmark.');
+    }
+    setAddressLoading(false);
   };
 
-  const currentScreen = !journey 
-    ? 'SETUP'
-    : currentPhase === 'DELIVERED'
-      ? 'COMPLETE'
-      : 'SIMULATION';
-
-  if (currentScreen === 'SETUP') {
-    const hasSession = sessionData.phase1.originCity && sessionData.phase2.cityName;
-    
+  if (currentPhase === 'FORM') {
     return (
-      <div className="w-full flex-1 flex flex-col items-center justify-center p-8 bg-[#FAF9F6]">
-        <style dangerouslySetInnerHTML={{ __html: `
-          @keyframes pulse-ring {
-            0% { transform: scale(.33); }
-            80%, 100% { opacity: 0; }
-          }
-          .animate-pulse-ring {
-            animation: pulse-ring 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
-          }
-        `}} />
+      <div className="w-full flex-1 p-8 bg-[#f7f7f5]">
+        <div className="mx-auto max-w-3xl border border-[#dfdfd7] bg-white p-8 shadow-sm">
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-black text-[#121212]">Phase 3: End-to-End Simulation</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Fill all inputs, then simulation runs sequentially: Phase 1 (inter-city) then Phase 2 (last-mile).
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              <ArrowLeft size={16} /> Back
+            </button>
+          </div>
 
-        <div className="max-w-4xl w-full">
-          <div className="bg-white rounded-[3rem] shadow-2xl p-12 border border-slate-200 relative overflow-hidden text-center">
-            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-            
-            <div className="flex justify-center mb-8">
-              <div className="w-20 h-20 bg-indigo-50 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-100/50 rotate-3">
-                <Navigation className="w-10 h-10 text-indigo-600" />
-              </div>
+          <div className="grid gap-5">
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                Product SKU City
+              </label>
+              <select
+                value={formData.skuCityId}
+                onChange={(e) => updateForm('skuCityId', e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900"
+              >
+                <option value="" className="text-slate-900">Select source city</option>
+                {cityOptions.map((city) => (
+                  <option key={city.id} value={city.id} className="text-slate-900">
+                    {city.name} ({city.id})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <h2 className="text-5xl font-black text-slate-900 mb-4 tracking-tighter">Initialize Journey</h2>
-            <p className="text-slate-500 font-bold mb-8 max-w-lg mx-auto leading-relaxed">
-              Configure the end-to-end supply chain protocol. Bridge the gap between national hubs and local doorsteps.
-            </p>
-
-            <div className="mb-10 p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100/50 flex items-center justify-between text-left">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-indigo-600">
-                  <Activity size={24} />
-                </div>
-                <div>
-                  <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Active Session Intelligence</h4>
-                  <p className="text-sm font-bold text-slate-700">
-                    {hasSession 
-                      ? `${sessionData.phase1.originCity} → ${sessionData.phase2.cityName} | ${sessionData.phase2.deliveryAddresses?.length || 0} stops`
-                      : 'No previous session found. Using defaults: Delhi → Pune.'}
-                  </p>
-                </div>
-              </div>
-              {!hasSession && <span className="text-[10px] font-black px-3 py-1 bg-amber-100 text-amber-700 rounded-lg">FALLBACK ACTIVE</span>}
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                Customer City
+              </label>
+              <select
+                value={formData.customerCityId}
+                onChange={(e) => {
+                  updateForm('customerCityId', e.target.value);
+                  updateForm('customerAddressCoords', null);
+                  setAddressSuggestions([]);
+                }}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900"
+              >
+                <option value="" className="text-slate-900">Select destination city</option>
+                {cityOptions.map((city) => (
+                  <option key={city.id} value={city.id} className="text-slate-900">
+                    {city.name} ({city.id})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8 mb-12">
-              <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-black/5 text-left">
-                <div className="flex items-center gap-3 mb-6">
-                  <Globe className="w-5 h-5 text-indigo-600" />
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Inter-City Protocol</span>
-                </div>
-                <select 
-                  value={macroAlgorithm}
-                  onChange={(e) => setMacroAlgorithm(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-black text-slate-800 shadow-sm focus:ring-4 focus:ring-indigo-100 outline-none"
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                Customer Address
+              </label>
+              <div className="flex gap-3">
+                <input
+                  value={formData.customerAddress}
+                  onChange={(e) => {
+                    updateForm('customerAddress', e.target.value);
+                    updateForm('customerAddressCoords', null);
+                  }}
+                  placeholder="Enter customer address or landmark"
+                  className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400"
+                />
+                <button
+                  onClick={handleAddressSearch}
+                  disabled={addressLoading}
+                  className="rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-70"
                 >
-                  <option value="Bellman-Ford">Bellman-Ford</option>
-                  <option value="Floyd-Warshall">Floyd-Warshall</option>
-                </select>
+                  {addressLoading ? 'Searching...' : 'Find'}
+                </button>
               </div>
-
-              <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-black/5 text-left">
-                <div className="flex items-center gap-3 mb-6">
-                  <Zap className="w-5 h-5 text-amber-600" />
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Last-Mile Protocol</span>
+              {addressError && <p className="mt-2 text-xs font-semibold text-rose-500">{addressError}</p>}
+              {!!addressSuggestions.length && (
+                <div className="mt-3 max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white p-2">
+                  {addressSuggestions.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        updateForm('customerAddress', item.address);
+                        updateForm('customerAddressName', item.name);
+                        updateForm('customerAddressCoords', { lat: item.lat, lng: item.lng });
+                        setAddressSuggestions([]);
+                      }}
+                      className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-100"
+                    >
+                      <p className="font-bold text-slate-800">{item.name}</p>
+                      <p className="text-xs text-slate-500">{item.address}</p>
+                    </button>
+                  ))}
                 </div>
-                <select 
-                   value={microAlgorithm}
-                   onChange={(e) => setMicroAlgorithm(e.target.value)}
-                   className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-black text-slate-800 shadow-sm focus:ring-4 focus:ring-amber-100 outline-none"
-                >
-                  <option value="Dijkstra">Dijkstra</option>
-                  <option value="A*">A*</option>
-                </select>
-              </div>
+              )}
+              {formData.customerAddressCoords && (
+                <p className="mt-2 text-xs font-semibold text-emerald-600">
+                  Address selected ({formData.customerAddressCoords.lat.toFixed(4)},{' '}
+                  {formData.customerAddressCoords.lng.toFixed(4)})
+                </p>
+              )}
             </div>
 
             <button
-              onClick={handleLaunchJourney}
+              onClick={startJourney}
               disabled={loading}
-              className="group relative w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl tracking-tight shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-95 disabled:opacity-70"
+              className="mt-2 flex items-center justify-center gap-3 bg-[#d72638] py-4 text-sm font-black uppercase tracking-wider text-white hover:bg-[#b71f2f] disabled:opacity-70"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-10 transition-opacity"></div>
               {loading ? (
-                <div className="flex items-center justify-center gap-4 text-sm tracking-widest uppercase">
-                  <Loader2 className="w-5 h-5 animate-spin" /> Initializing...
-                </div>
+                <>
+                  <Loader2 size={18} className="animate-spin" /> Preparing
+                </>
               ) : (
-                <div className="flex items-center justify-center gap-4">
-                  Confirm & Launch Mission <ChevronRight className="w-6 h-6" />
-                </div>
+                'Start Phase 3 (Phase 1 + Phase 2)'
               )}
             </button>
-            {error && <p className="mt-4 text-red-500 font-bold text-xs">Error: {error}</p>}
+            {error && <p className="text-sm font-semibold text-rose-500">{error}</p>}
           </div>
         </div>
       </div>
     );
   }
 
-  if (currentScreen === 'COMPLETE') {
+  if (currentPhase === 'DELIVERED') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#FAF9F6] text-slate-900 p-12 text-center">
-        <div className="w-32 h-32 bg-emerald-100 rounded-[3rem] flex items-center justify-center mb-10 border border-emerald-200 shadow-xl">
-          <CheckCircle className="w-16 h-16 text-emerald-600" />
-        </div>
-        <h1 className="text-6xl font-black mb-4 tracking-tighter text-slate-900">Mission Accomplished!</h1>
-        <p className="text-slate-500 font-bold mb-16 max-w-lg mx-auto text-lg leading-relaxed">
-          The package has been successfully delivered from hub to doorstep.
-        </p>
-        <button 
+      <div className="flex min-h-[70vh] flex-col items-center justify-center border border-[#dfdfd7] bg-white p-8 text-center">
+        <CheckCircle2 className="mb-4 h-16 w-16 text-[#198754]" />
+        <h2 className="text-3xl font-black text-[#121212]">Phase 3 Completed</h2>
+        <p className="mt-2 text-slate-600">Package delivered successfully through sequential Phase 1 and Phase 2.</p>
+        <button
           onClick={resetJourney}
-          className="px-12 py-5 bg-slate-900 text-white rounded-[2rem] font-black text-lg uppercase tracking-widest shadow-2xl flex items-center gap-3"
+          className="mt-6 flex items-center gap-2 bg-[#121212] px-5 py-3 text-sm font-black text-white"
         >
-          <RotateCcw size={20} /> New Simulation
+          <RotateCcw size={16} /> New Simulation
         </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] text-slate-900 flex flex-col font-sans">
-      <header className="px-10 py-6 border-b border-slate-200 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
-        <div className="flex items-center gap-6">
-          <button onClick={() => navigate('/')} className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-all text-slate-600">
-            <ArrowLeft className="w-6 h-6" />
+    <div className="space-y-5 border border-[#dfdfd7] bg-white p-5">
+      <div className="flex items-center justify-between border border-[#dfdfd7] bg-[#f7f7f5] px-4 py-3">
+        <div>
+          <h2 className="text-xl font-black text-slate-900">Phase 3 Live Simulation</h2>
+          <p className="text-xs font-semibold text-slate-500">{statusMessage}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={isPaused ? resumeAnimation : pauseAnimation}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700"
+          >
+            {isPaused ? <Play size={14} /> : <Pause size={14} />} {isPaused ? 'Resume' : 'Pause'}
           </button>
-          <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">Phase 3: Mission Journey</h1>
-            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-1">Live Synchronization Interface</p>
-          </div>
+          <button
+            onClick={resetJourney}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700"
+          >
+            <RotateCcw size={14} /> Reset
+          </button>
         </div>
-        <div className="flex items-center gap-4">
-           <button onClick={isPaused ? resumeAnimation : pauseAnimation} className="px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm">
-              {isPaused ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />} {isPaused ? 'Resume' : 'Pause'}
-           </button>
-           <button onClick={resetJourney} className="px-6 py-3 bg-slate-100 border border-slate-200 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-slate-200 transition-all">
-              <RotateCcw size={16} /> Reset
-           </button>
-        </div>
-      </header>
+      </div>
 
-      <main className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden">
-        <aside className="w-full lg:w-[450px] border-r border-slate-200 bg-white flex flex-col shadow-sm z-10 p-6 overflow-y-auto">
-          <div className="flex items-center gap-3 mb-6 px-2">
-            <div className="p-3 bg-indigo-50 rounded-xl"><Activity className="w-6 h-6 text-indigo-600" /></div>
-            <h2 className="text-2xl font-black tracking-tighter text-slate-800">Mission Audit</h2>
+      <div className="h-3 overflow-hidden bg-[#e7e7df]">
+        <div className="h-full bg-[#d72638] transition-all duration-500" style={{ width: `${overallProgress}%` }} />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+        <aside className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Input Snapshot</p>
+            <p className="mt-2 text-sm font-semibold text-slate-800">
+              {sourceCity?.name || 'N/A'} → {destinationCity?.name || 'N/A'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">{formData.customerAddress}</p>
           </div>
-          
-          <div className="flex-1 border bg-slate-50 border-slate-200 rounded-3xl overflow-hidden shadow-inner p-6 space-y-6">
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Lifecycle</span>
-                  <span className="text-xl font-black text-indigo-600">{Math.round(overallProgress || 0)}%</span>
-                </div>
-                <div className="flex gap-1.5 h-3">
-                  <div className="flex-[6] bg-slate-100 rounded-l-full overflow-hidden border border-slate-200/50 relative">
-                    <div 
-                      className="h-full bg-blue-500 transition-all duration-1000 shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
-                      style={{ width: `${Math.min(100, (overallProgress / 60) * 100)}%` }} 
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="text-[7px] font-black text-slate-400/60 uppercase">MACRO HUB</span>
-                    </div>
-                  </div>
-                  <div className="flex-[4] bg-slate-100 rounded-r-full overflow-hidden border border-slate-200/50 relative">
-                    <div 
-                      className="h-full bg-emerald-500 transition-all duration-1000 shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
-                      style={{ width: `${overallProgress > 60 ? ((overallProgress - 60) / 40 * 100) : 0}%` }} 
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="text-[7px] font-black text-slate-400/60 uppercase">MICRO LAST-MILE</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              <div className={`p-6 rounded-2xl border transition-all ${!showMicroPhase ? 'bg-blue-50 border-blue-100 shadow-sm' : 'bg-white border-slate-200 opacity-60'}`}>
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center gap-2"><Globe className="w-4 h-4 text-blue-600" /><span className="font-black uppercase tracking-widest text-blue-800 text-[10px]">Macro Phase</span></div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><p className="text-[9px] font-bold text-slate-400 uppercase">Algorithm</p><p className="text-xs font-black text-slate-800">{journey?.macroAlgorithmUsed || '...'}</p></div>
-                    <div><p className="text-[9px] font-bold text-slate-400 uppercase">Distance</p><p className="text-xs font-black text-slate-800">{Math.round(journey?.macroDistanceTraveled || 0)} / {Math.round(journey?.macroTotalDistance || 100)} km</p></div>
-                  </div>
-                </div>
-              </div>
+          <div className={`border p-4 ${inMacroPhase ? 'border-[#f1c2c8] bg-[#fff2f2]' : 'border-[#dfdfd7] bg-white'}`}>
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Phase 1 (Inter-city)</p>
+            <p className="mt-2 text-xs font-semibold text-slate-700">
+              {macroRoute.length ? `${macroCurrentStep + 1} / ${macroRoute.length} nodes` : 'Preparing...'}
+            </p>
+            <p className="text-xs text-slate-500">Distance: {Math.round(macroTotalDistance)} km</p>
+          </div>
 
-              <div className={`p-6 rounded-2xl border transition-all ${showMicroPhase ? 'bg-emerald-50 border-emerald-100 shadow-sm' : 'bg-white border-slate-200 opacity-60'}`}>
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-emerald-600" /><span className="font-black uppercase tracking-widest text-emerald-800 text-[10px]">Micro Phase</span></div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><p className="text-[9px] font-bold text-slate-400 uppercase">Algorithm</p><p className="text-xs font-black text-slate-800">{journey?.microAlgorithmUsed || '...'}</p></div>
-                    <div><p className="text-[9px] font-bold text-slate-400 uppercase">Stops</p><p className="text-xs font-black text-slate-800">{journey?.microCurrentStepIndex || 0} / {journey?.microOptimalRoute?.length || 0}</p></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-900 text-white rounded-2xl shadow-xl overflow-hidden">
-                 <p className="text-[8px] font-black text-slate-500 uppercase mb-1 tracking-widest">Live Status Feed</p>
-                 <p className="text-[11px] font-bold text-slate-200 italic truncate">{statusMessage}</p>
-              </div>
+          <div className={`border p-4 ${inMicroPhase ? 'border-[#d9e8db] bg-[#f3faf4]' : 'border-[#dfdfd7] bg-white'}`}>
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Phase 2 (Last-mile)</p>
+            <p className="mt-2 text-xs font-semibold text-slate-700">
+              Warehouse: {microWarehouse?.name || 'Preparing...'}
+            </p>
+            <p className="text-xs text-slate-500">Distance: {microTotalDistance.toFixed(2)} km</p>
           </div>
         </aside>
 
-        <section className="flex-1 relative flex flex-col bg-slate-100 p-8">
-           <div className="w-full h-full bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl overflow-hidden relative">
-              {!showMicroPhase ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-[#FAF9F6] p-10 relative">
-                   <svg width="600" height="550" viewBox="0 0 600 550">
-                      {Object.keys(MACRO_NODES).map(id => {
-                        const node = MACRO_NODES[id];
-                        const targets = Object.keys(MACRO_NODES).filter(t => t !== id);
-                        return targets.map(tid => (
-                          <line 
-                            key={`${id}-${tid}`} 
-                            x1={node.x} y1={node.y} 
-                            x2={MACRO_NODES[tid].x} y2={MACRO_NODES[tid].y} 
-                            stroke="#e2e8f0" 
-                            strokeWidth="0.5" 
-                            strokeDasharray="2 2" 
-                          />
-                        ));
-                      })}
-                      {journey?.macroRoute?.slice(0, journey.macroCurrentStepIndex).map((nid, i) => {
-                         const nextId = journey.macroRoute[i + 1];
-                         if (nextId === undefined) return null;
-                         const n1 = MACRO_NODES[nid] || { x: 300, y: 200 };
-                         const n2 = MACRO_NODES[nextId] || { x: 300, y: 200 };
-                         return <line key={i} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#4f46e5" strokeWidth="4" strokeLinecap="round" />;
-                      })}
-                      {Object.keys(MACRO_NODES).map(id => {
-                        const cityMatch = Object.values(CITY_DATA).find(c => c.nodeId === Number(id));
-                        const isCurrent = journey?.macroRoute?.[journey.macroCurrentStepIndex] === Number(id);
-                        const node = MACRO_NODES[id];
-                        return (
-                            <g key={id}>
-                              <circle cx={node.x} cy={node.y} r={isCurrent ? 12 : 6} fill={isCurrent ? "#f59e0b" : "#cbd5e1"} stroke="white" strokeWidth="2" />
-                              <text x={node.x} y={node.y - 15} textAnchor="middle" fill="#64748b" className="text-[9px] font-black uppercase tracking-wider">{cityMatch?.name || node.name}</text>
-                            </g>
-                          );
-                        })}
-                        
-                        {/* Moving Vehicle */}
-                        {journey?.macroRoute && journey.macroCurrentStepIndex < journey.macroRoute.length && currentPhase === 'IN_MACRO_TRANSIT' && (
-                          (() => {
-                             const nid = journey.macroRoute[journey.macroCurrentStepIndex];
-                             const node = MACRO_NODES[nid] || { x: 300, y: 200 };
-                             return (
-                               <g 
-                                 className="transition-all duration-[2000ms] ease-linear"
-                                 style={{ transform: `translate(${node.x}px, ${node.y}px)` }}
-                               >
-                                  <circle cx="0" cy="0" r="16" fill="#1e1b4b" stroke="#818cf8" strokeWidth="2" className="drop-shadow-lg" />
-                                  <foreignObject x="-10" y="-10" width="20" height="20" className="flex items-center justify-center">
-                                     <Truck className="w-5 h-5 text-indigo-300" />
-                                  </foreignObject>
-                               </g>
-                             );
-                          })()
-                        )}
-                     </svg>
-                   <div className="absolute top-8 left-8 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl shadow-sm"><span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">National Hub Network</span></div>
-                </div>
-              ) : (
-                <div className="w-full h-full relative">
-                   <IntraCityMapSimulator 
-                      warehouse={journey?.microWarehouse || {}}
-                      deliveryStops={journey?.microDeliveryAddresses || []}
-                      route={journey?.microOptimalRoute || []}
-                      totalDistance={journey?.microTotalDistance || 0}
-                      autoSimulate={true}
-                      externalIsPaused={isPaused}
-                   />
-                   <div className="absolute top-8 left-8 z-[1000] p-4 bg-emerald-50 border border-emerald-100 rounded-2xl shadow-sm"><span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Local City View</span></div>
-                </div>
-              )}
+        <section className="min-h-[640px] overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          {inMacroPhase ? (
+            <div className="flex h-full flex-col items-center justify-center bg-slate-50 p-6">
+              <h3 className="mb-4 text-lg font-black text-slate-900">Phase 1 Simulation</h3>
+              <svg width="600" height="520" viewBox="0 0 600 520">
+                {Object.keys(MACRO_NODES).map((id) => {
+                  const node = MACRO_NODES[id];
+                  return Object.keys(MACRO_NODES)
+                    .filter((target) => target !== id)
+                    .slice(0, 3)
+                    .map((target) => (
+                      <line
+                        key={`${id}-${target}`}
+                        x1={node.x}
+                        y1={node.y}
+                        x2={MACRO_NODES[target].x}
+                        y2={MACRO_NODES[target].y}
+                        stroke="#e2e8f0"
+                        strokeWidth="0.6"
+                      />
+                    ));
+                })}
 
-              {currentPhase === 'ARRIVED_AT_HUB' && (
-                <div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in">
-                   <div className="w-24 h-24 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-6 shadow-xl animate-bounce"><Package className="w-12 h-12" /></div>
-                   <h3 className="text-4xl font-black text-slate-800 tracking-tighter">Arrived at Destination Hub</h3>
-                   <p className="text-slate-500 font-bold mb-8 italic">Switching to last-mile delivery protocols...</p>
-                   <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                </div>
-              )}
-           </div>
+                {macroRoute.slice(0, Math.max(0, macroCurrentStep)).map((nodeId, idx) => {
+                  const next = macroRoute[idx + 1];
+                  if (next === undefined) return null;
+                  const n1 = MACRO_NODES[nodeId];
+                  const n2 = MACRO_NODES[next];
+                  if (!n1 || !n2) return null;
+                  return (
+                    <line
+                      key={`progress-${idx}`}
+                      x1={n1.x}
+                      y1={n1.y}
+                      x2={n2.x}
+                      y2={n2.y}
+                      stroke="#4f46e5"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
+
+                {Object.keys(MACRO_NODES).map((id) => {
+                  const numericId = Number(id);
+                  const point = MACRO_NODES[id];
+                  const isCurrent = macroRoute[macroCurrentStep] === numericId;
+                  return (
+                    <g key={id}>
+                      <circle cx={point.x} cy={point.y} r={isCurrent ? 10 : 5} fill={isCurrent ? '#f59e0b' : '#94a3b8'} />
+                      <text x={point.x} y={point.y - 12} textAnchor="middle" fill="#475569" className="text-[9px] font-bold">
+                        {point.name}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+          ) : (
+            <IntraCityMapSimulator
+              warehouse={normalizedMicroWarehouse || {}}
+              deliveryAddresses={microDeliveryAddresses}
+              route={normalizedMicroRoute}
+              totalDistance={microTotalDistance}
+              autoSimulate={currentPhase === 'MICRO_TRANSIT'}
+              shouldStartAnimation={currentPhase === 'MICRO_TRANSIT'}
+              externalIsPaused={isPaused}
+              onAnimationComplete={handleMicroComplete}
+            />
+          )}
         </section>
-      </main>
+      </div>
     </div>
   );
 }

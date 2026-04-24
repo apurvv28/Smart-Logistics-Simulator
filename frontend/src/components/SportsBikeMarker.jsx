@@ -1,19 +1,21 @@
 import React from 'react';
-import bikeImg from '../../dist/assets/bike-removebg-preview.png';
+import bikeImg from '../assets/bike-removebg-preview.png';
 
 const SportsBikeMarker = ({ bearing = 0, speed = 0, isMoving = false }) => {
-  const isHeadingLeft = bearing > 180;
+  // Keep orientation mostly intact and only flip on clear reverse direction.
+  const isHeadingLeft = bearing > 135 && bearing < 225;
 
   return (
     <div style={{
-      width: '100px',
-      height: '60px',
+      width: '80px',
+      height: '50px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       position: 'relative',
-      transform: `rotate(${bearing}deg) ${isHeadingLeft ? 'scaleY(-1)' : 'scaleY(1)'}`,
-      transition: 'transform 0.3s ease-out'
+      // NO rotation — just horizontal flip for direction
+      transform: isHeadingLeft ? 'scaleX(-1)' : 'scaleX(1)',
+      transition: 'transform 1.2s ease-out',
     }}>
       <img 
         src={bikeImg} 

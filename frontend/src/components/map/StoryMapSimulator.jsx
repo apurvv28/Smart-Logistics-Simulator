@@ -79,8 +79,8 @@ export default function StoryMapSimulator({ networkData, selectedOrder }) {
     <section className="story-card p-4 md:p-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black text-amber-900">Adventure Map</h2>
-          <p className="text-sm text-amber-900/70">Watch exact movement across the India logistics map.</p>
+          <h2 className="text-xl font-black text-[#121212]">Operations Map</h2>
+          <p className="text-sm text-[#4f4f4f]">Watch exact movement across the India logistics map.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className={`story-chip ${routeMode === 'delivery' ? 'story-chip-active' : ''}`} onClick={() => setMode('delivery')}>Delivery Quest</button>
@@ -92,11 +92,11 @@ export default function StoryMapSimulator({ networkData, selectedOrder }) {
         </div>
       </div>
 
-      <div className="rounded-2xl overflow-hidden border border-amber-700/30 h-[480px] bg-[#f8f3df]">
+      <div className="overflow-hidden border border-[#dfdfd7] h-[480px] bg-[#f2f2ef]">
         <MapContainer center={[22.5, 79.0]} zoom={5} style={{ height: '100%', width: '100%' }}>
           <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; OpenStreetMap contributors'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            attribution='Tiles &copy; Esri'
           />
 
           {(networkData?.nodes || []).map((node) => (
@@ -109,7 +109,7 @@ export default function StoryMapSimulator({ networkData, selectedOrder }) {
           ))}
 
           {routeCoordinates.length > 1 && (
-            <Polyline positions={routeCoordinates} color={routeMode === 'return' ? '#be3f2b' : '#2b6f8b'} weight={5} opacity={0.85} />
+            <Polyline positions={routeCoordinates} color={routeMode === 'return' ? '#d72638' : '#c8a44d'} weight={5} opacity={0.85} />
           )}
 
           {currentCoord && (
@@ -124,7 +124,7 @@ export default function StoryMapSimulator({ networkData, selectedOrder }) {
       </div>
 
       {activeRoute.length > 0 && (
-        <div className="story-panel text-sm text-amber-950">
+        <div className="story-panel text-sm text-[#121212]">
           <span className="font-bold">Path Nodes:</span> {activeRoute.join(' -> ')}
         </div>
       )}

@@ -119,15 +119,15 @@ export default function IntraCityDeliveryPage() {
   }, [simulationData]);
 
   return (
-    <div className="w-full h-[calc(100vh-140px)] flex flex-col overflow-hidden bg-slate-50 rounded-3xl shadow-sm border border-slate-200">
-      <div className="bg-white px-8 py-5 border-b border-slate-100 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="w-full h-[calc(100vh-140px)] flex flex-col overflow-hidden bg-[#f7f7f5] shadow-sm border border-[#dfdfd7]">
+      <div className="bg-white px-8 py-5 border-b border-[#dfdfd7] flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-indigo-50 rounded-2xl">
-            <MapPin className="w-5 h-5 text-indigo-600" />
+          <div className="p-3 bg-[#fff2f2] border border-[#f1c2c8]">
+            <MapPin className="w-5 h-5 text-[#d72638]" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Intra-city Route Planner</h3>
-            <p className="text-xs text-slate-400 font-medium tracking-tight">Pick city, warehouse, and delivery stops to simulate live last-mile routing.</p>
+            <h3 className="text-sm font-black text-[#121212] uppercase tracking-wider">Intra-city Route Planner</h3>
+            <p className="text-xs text-[#5a5a5a] font-medium tracking-tight">Pick city, warehouse, and delivery stops to simulate live last-mile routing.</p>
           </div>
         </div>
 
@@ -195,7 +195,7 @@ export default function IntraCityDeliveryPage() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex-1 min-w-0 border border-[#dfdfd7] bg-white shadow-sm overflow-hidden">
           {selectedWarehouse ? (
             <IntraCityMapSimulator
               warehouse={selectedWarehouse}

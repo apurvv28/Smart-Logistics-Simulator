@@ -1,171 +1,247 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
+import { CITY_DATA } from '../data/cityData';
 
-const API_BASE = 'http://127.0.0.1:8081/api/end-to-end';
-
-const FALLBACK_WAREHOUSE = {
-  id: 'warehouse',
-  name: 'Pune Central Warehouse',
-  latitude: 18.5204,
-  longitude: 73.8567
-};
-
-const FALLBACK_ADDRESSES = [
-  { id: 'addr1', name: 'Hinjewadi Tech Park',  latitude: 18.5912, longitude: 73.7719, address: 'Hinjewadi, Pune' },
-  { id: 'addr2', name: 'Koregaon Park',         latitude: 18.5384, longitude: 73.8903, address: 'Koregaon Park, Pune' },
-  { id: 'addr3', name: 'Baner',                 latitude: 18.5596, longitude: 73.8142, address: 'Baner, Pune' },
-  { id: 'addr4', name: 'Viman Nagar',           latitude: 18.4674, longitude: 73.9162, address: 'Viman Nagar, Pune' }
-];
+const API_BASE = 'http://127.0.0.1:8081/api';
+const MACRO_TICK_MS = 1700;
 
 export function useEndToEndState() {
-  const [journey, setJourney] = useState(null);
-  const [journeyId, setJourneyId] = useState(null);
+  const [formData, setFormData] = useState({
+    skuCityId: '',
+    customerCityId: '',
+    customerAddress: '',
+    customerAddressCoords: null,
+    customerAddressName: '',
+  });
+
+  const [currentPhase, setCurrentPhase] = useState('FORM');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [statusMessage, setStatusMessage] = useState('Idle');
+  const [error, setError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('Fill the form to start Phase 3.');
   const [isPaused, setIsPaused] = useState(false);
-  const [isDelivering, setIsDelivering] = useState(false);
-  const [currentDeliveryStop, setCurrentDeliveryStop] = useState(null);
 
+  const [macroRoute, setMacroRoute] = useState([]);
+  const [macroCurrentStep, setMacroCurrentStep] = useState(0);
+  const [macroTotalDistance, setMacroTotalDistance] = useState(0);
+
+  const [microSimulationData, setMicroSimulationData] = useState(null);
+  const [microWarehouse, setMicroWarehouse] = useState(null);
+  const [microDeliveryAddresses, setMicroDeliveryAddresses] = useState([]);
+  const [microTotalDistance, setMicroTotalDistance] = useState(0);
+
+  const macroTimerRef = useRef(null);
   const isPausedRef = useRef(false);
-  const isDeliveringRef = useRef(false);
-  const journeyIdRef = useRef(null);
-  const animationIntervalRef = useRef(null);
+  const macroRouteRef = useRef([]);
 
-  const [sessionData, setSessionData] = useState({ phase1: {}, phase2: {} });
+  const cityOptions = useMemo(
+    () => Object.values(CITY_DATA).sort((a, b) => a.name.localeCompare(b.name)),
+    []
+  );
 
-  // Read bridge data on mount for UI display
-  useEffect(() => {
-    const p1 = JSON.parse(localStorage.getItem('logicore_phase1') || '{}');
-    const p2 = JSON.parse(localStorage.getItem('logicore_phase2') || '{}');
-    setSessionData({ phase1: p1, phase2: p2 });
-  }, []);
+  const getCityData = (cityId) => CITY_DATA[cityId] || null;
 
-  const initiateJourney = async (macroAlgo, microAlgo) => {
-    console.log('[Phase 3] Initiating Journey: Macro=', macroAlgo, 'Micro=', microAlgo);
-    setLoading(true);
-    setError(null);
-    setStatusMessage('Configuring Global Logistics Bridge...');
-
-    // Read cross-phase data from localStorage
-    let phase1Data = {};
-    let phase2Data = {};
-    try {
-      phase1Data = JSON.parse(localStorage.getItem('logicore_phase1') || '{}');
-      phase2Data = JSON.parse(localStorage.getItem('logicore_phase2') || '{}');
-    } catch(e) {
-      console.warn('[Phase 3] Could not parse localStorage data:', e);
+  const clearMacroTimer = () => {
+    if (macroTimerRef.current) {
+      clearInterval(macroTimerRef.current);
+      macroTimerRef.current = null;
     }
+  };
 
-    console.log('[Phase 3] Phase1 data:', phase1Data);
-    console.log('[Phase 3] Phase2 data:', phase2Data);
+  const updateForm = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setError('');
+  };
 
-    // Safely extract node IDs with fallbacks
-    const originNodeId = phase1Data.originNodeId ?? phase1Data.sourceNodeId ?? 0;
-    const destNodeId   = phase2Data.nodeId ?? phase2Data.destinationNodeId ?? phase1Data.destinationNodeId ?? 4;
+  const validateForm = () => {
+    if (!formData.skuCityId) return 'Select Product SKU city.';
+    if (!formData.customerCityId) return 'Select Customer city.';
+    if (!formData.customerAddressCoords) return 'Select a customer address from suggestions.';
+    return '';
+  };
 
-    // Safely extract micro routing data
-    const warehouse         = phase2Data.warehouse         ?? FALLBACK_WAREHOUSE;
-    const deliveryAddresses = phase2Data.deliveryAddresses ?? FALLBACK_ADDRESSES;
+  const findNearestWarehouse = (cityId, coords) => {
+    const city = getCityData(cityId);
+    if (!city) return null;
+    const options = city.warehouseLocations?.length ? city.warehouseLocations : [city.warehouse].filter(Boolean);
+    if (!options.length) return null;
+    let nearest = options[0];
+    let best = Infinity;
+    options.forEach((wh) => {
+      const lat = wh.lat ?? wh.latitude;
+      const lng = wh.lng ?? wh.longitude;
+      const d = Math.sqrt((lat - coords.lat) ** 2 + (lng - coords.lng) ** 2);
+      if (d < best) {
+        best = d;
+        nearest = wh;
+      }
+    });
+    return nearest;
+  };
 
-    console.log('[Phase 3] Origin nodeId:', originNodeId, '→ Dest nodeId:', destNodeId);
-
-    // Validate we have minimum required data
-    if (!warehouse || !warehouse.latitude) {
-      setError('No intra-city session found. Please run Phase 2 (Intra-City) first.');
-      setLoading(false);
+  const startMicroPhase = async (warehouse, customerStop) => {
+    const customerCity = getCityData(formData.customerCityId);
+    if (!customerCity || !warehouse) {
+      setError('Unable to prepare last-mile simulation.');
       return;
     }
 
+    setCurrentPhase('MICRO_LOADING');
+    setStatusMessage('Phase 2: calculating warehouse to customer route...');
+
     try {
-      const payload = {
-        originCityId:            originNodeId,
-        destinationCityId:       destNodeId,
-        primaryAlgorithmMacro:   macroAlgo,
-        secondaryAlgorithmMicro: microAlgo,
-        deliveryAddresses:       deliveryAddresses
-      };
+      const response = await axios.post(`${API_BASE}/local-delivery/calculate-city-route`, {
+        cityId: customerCity.id,
+        warehouseId: warehouse.id,
+        warehouse: {
+          ...warehouse,
+          latitude: warehouse.lat ?? warehouse.latitude,
+          longitude: warehouse.lng ?? warehouse.longitude,
+        },
+        deliveryStops: [
+          {
+            ...customerStop,
+            latitude: customerStop.lat ?? customerStop.latitude,
+            longitude: customerStop.lng ?? customerStop.longitude,
+          },
+        ],
+        algorithmType: 'DIJKSTRA',
+      });
 
-      console.log('[Phase 3] Sending payload:', payload);
-
-      const response = await axios.post(`${API_BASE}/initiate-journey`, payload);
-      console.log('[Phase 3] API Response:', response.data);
-
-      if (response.data.status === 'success') {
-        const state = response.data.journey;
-        setJourney(state);
-        setJourneyId(response.data.journeyId);
-        journeyIdRef.current = response.data.journeyId;
-        setStatusMessage('Journey initialized. Starting macro transit.');
-        startAnimation();
-      } else {
-        throw new Error(response.data.message || 'Initiation failed');
+      if (response.data.status !== 'success') {
+        throw new Error(response.data.message || 'Route calculation failed.');
       }
-    } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error || err.message;
-      console.error('[Phase 3] Initiation failed:', msg);
-      setError(msg);
-      setStatusMessage('Initiation failed');
-    } finally {
-      setLoading(false);
+
+      setMicroSimulationData(response.data);
+      setMicroTotalDistance(response.data.totalDistance || 0);
+      setCurrentPhase('MICRO_TRANSIT');
+      setStatusMessage('Phase 2: last-mile simulation in progress...');
+    } catch (routeError) {
+      const fallback = {
+        status: 'success',
+        totalDistance: 0,
+        route: {
+          path: [
+            {
+              id: warehouse.id,
+              name: warehouse.name || 'Warehouse',
+              address: warehouse.address || '',
+              latitude: warehouse.lat ?? warehouse.latitude,
+              longitude: warehouse.lng ?? warehouse.longitude,
+            },
+            {
+              id: customerStop.id,
+              name: customerStop.name,
+              address: customerStop.address,
+              latitude: customerStop.lat ?? customerStop.latitude,
+              longitude: customerStop.lng ?? customerStop.longitude,
+            },
+          ],
+        },
+      };
+      setMicroSimulationData(fallback);
+      setMicroTotalDistance(0);
+      setCurrentPhase('MICRO_TRANSIT');
+      setStatusMessage('Phase 2: last-mile simulation started (offline fallback).');
+      console.warn('Micro phase fallback used:', routeError.message);
     }
   };
 
-  const startAnimation = () => {
-    if (animationIntervalRef.current) clearInterval(animationIntervalRef.current);
-    
-    isPausedRef.current = false;
-    setIsPaused(false);
-    isDeliveringRef.current = false;
-    setIsDelivering(false);
+  const startMacroAnimation = (route, onComplete) => {
+    clearMacroTimer();
+    setMacroCurrentStep(0);
+    macroRouteRef.current = route;
 
-    animationIntervalRef.current = setInterval(async () => {
-      if (isPausedRef.current || isDeliveringRef.current) return;
-      
-      const currentJid = journeyIdRef.current;
-      if (!currentJid) return;
+    if (route.length <= 1) {
+      onComplete();
+      return;
+    }
 
-      try {
-        const response = await axios.post(`${API_BASE}/advance-step/${currentJid}`);
-        
-        if (response.data.status === 'success') {
-          const newState = response.data.journey;
-          
-          setJourney(newState);
-          setStatusMessage(newState.statusMessage || 'Transit in progress...');
-
-          // ARRIVAL PAUSE LOGIC
-          // Check if we just arrived at a delivery stop in micro-phase
-          if (newState.currentPhase === 'IN_MICRO_TRANSIT' && newState.microCurrentStepIndex > 0) {
-            const currentStop = newState.microOptimalRoute?.[newState.microCurrentStepIndex];
-            // If it's a delivery stop (not the warehouse) we pause
-            if (currentStop && currentStop.id !== 'warehouse') {
-              isDeliveringRef.current = true;
-              setIsDelivering(true);
-              setCurrentDeliveryStop(currentStop.name);
-              
-              setTimeout(() => {
-                isDeliveringRef.current = false;
-                setIsDelivering(false);
-                setCurrentDeliveryStop(null);
-              }, 5000);
-            }
-          }
-
-          if (newState.currentPhase === 'DELIVERED') {
-            stopAnimation();
-          }
+    macroTimerRef.current = setInterval(() => {
+      if (isPausedRef.current) return;
+      setMacroCurrentStep((prev) => {
+        const next = prev + 1;
+        if (next >= macroRouteRef.current.length - 1) {
+          clearMacroTimer();
+          setTimeout(onComplete, 600);
+          return macroRouteRef.current.length - 1;
         }
-      } catch (err) {
-        console.error('[Phase 3] Advance Step Error:', err.message);
-      }
-    }, 2000);
+        return next;
+      });
+    }, MACRO_TICK_MS);
   };
 
-  const stopAnimation = () => {
-    if (animationIntervalRef.current) {
-      clearInterval(animationIntervalRef.current);
-      animationIntervalRef.current = null;
+  const startJourney = async () => {
+    const validationMessage = validateForm();
+    if (validationMessage) {
+      setError(validationMessage);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setIsPaused(false);
+    isPausedRef.current = false;
+    setCurrentPhase('INITIATING');
+    setStatusMessage('Preparing Phase 1 inter-city route...');
+
+    const skuCity = getCityData(formData.skuCityId);
+    const customerCity = getCityData(formData.customerCityId);
+    if (!skuCity || !customerCity) {
+      setLoading(false);
+      setError('Invalid city selection.');
+      return;
+    }
+
+    const customerStop = {
+      id: 'customer-address',
+      name: formData.customerAddressName || 'Customer Address',
+      address: formData.customerAddress,
+      lat: formData.customerAddressCoords.lat,
+      lng: formData.customerAddressCoords.lng,
+      latitude: formData.customerAddressCoords.lat,
+      longitude: formData.customerAddressCoords.lng,
+    };
+
+    const nearestWarehouse = findNearestWarehouse(formData.customerCityId, formData.customerAddressCoords);
+    setMicroWarehouse(nearestWarehouse);
+    setMicroDeliveryAddresses([customerStop]);
+
+    try {
+      const response = await axios.post(`${API_BASE}/end-to-end/initiate-journey`, {
+        originCityId: skuCity.nodeId,
+        destinationCityId: customerCity.nodeId,
+        primaryAlgorithmMacro: 'Bellman-Ford',
+        secondaryAlgorithmMicro: 'Dijkstra',
+        deliveryAddresses: [customerStop],
+      });
+
+      const backendRoute = response.data?.journey?.macroRoute || [];
+      const route = backendRoute.length ? backendRoute : [skuCity.nodeId, customerCity.nodeId];
+      setMacroRoute(route);
+      setMacroTotalDistance(response.data?.journey?.macroTotalDistance || 0);
+      setCurrentPhase('MACRO_TRANSIT');
+      setStatusMessage('Phase 1: inter-city simulation in progress...');
+
+      startMacroAnimation(route, async () => {
+        setCurrentPhase('MACRO_COMPLETE');
+        setStatusMessage('Phase 1 complete. Transitioning to Phase 2...');
+        await startMicroPhase(nearestWarehouse, customerStop);
+      });
+    } catch (journeyError) {
+      const fallbackRoute = [skuCity.nodeId, customerCity.nodeId];
+      setMacroRoute(fallbackRoute);
+      setMacroTotalDistance(0);
+      setCurrentPhase('MACRO_TRANSIT');
+      setStatusMessage('Phase 1 started (offline fallback).');
+
+      startMacroAnimation(fallbackRoute, async () => {
+        setCurrentPhase('MACRO_COMPLETE');
+        setStatusMessage('Phase 1 complete. Transitioning to Phase 2...');
+        await startMicroPhase(nearestWarehouse, customerStop);
+      });
+      console.warn('Macro phase fallback used:', journeyError.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -179,47 +255,66 @@ export function useEndToEndState() {
     setIsPaused(false);
   };
 
+  const handleMicroComplete = () => {
+    setCurrentPhase('DELIVERED');
+    setStatusMessage('Package delivered. Phase 3 completed successfully.');
+  };
+
   const resetJourney = () => {
-    stopAnimation();
-    setJourney(null);
-    setJourneyId(null);
-    journeyIdRef.current = null;
+    clearMacroTimer();
     isPausedRef.current = false;
     setIsPaused(false);
-    setError(null);
-    setStatusMessage('Idle');
+    setError('');
+    setCurrentPhase('FORM');
+    setStatusMessage('Fill the form to start Phase 3.');
+    setMacroRoute([]);
+    setMacroCurrentStep(0);
+    setMacroTotalDistance(0);
+    setMicroSimulationData(null);
+    setMicroWarehouse(null);
+    setMicroDeliveryAddresses([]);
+    setMicroTotalDistance(0);
   };
 
   useEffect(() => {
-    return () => stopAnimation();
+    return () => clearMacroTimer();
   }, []);
 
-  const currentPhase = journey?.currentPhase || 'INITIATED';
-  const showMicroPhase = currentPhase === 'IN_MICRO_TRANSIT' || currentPhase === 'DELIVERED';
-  
-  let overallProgress = 0;
-  if (journey?.overallProgressPercentage) {
-    const p = parseFloat(journey.overallProgressPercentage);
-    if (!isNaN(p)) overallProgress = p;
-  }
+  const overallProgress = (() => {
+    if (currentPhase === 'FORM') return 0;
+    if (currentPhase === 'INITIATING') return 8;
+    if (currentPhase === 'MACRO_TRANSIT') {
+      const ratio = macroRoute.length <= 1 ? 1 : macroCurrentStep / (macroRoute.length - 1);
+      return 8 + ratio * 52;
+    }
+    if (currentPhase === 'MACRO_COMPLETE') return 62;
+    if (currentPhase === 'MICRO_LOADING') return 68;
+    if (currentPhase === 'MICRO_TRANSIT') return 78;
+    if (currentPhase === 'DELIVERED') return 100;
+    return 0;
+  })();
 
   return {
-    journey,
-    journeyId,
+    formData,
+    updateForm,
+    cityOptions,
+    currentPhase,
     loading,
     error,
     statusMessage,
     isPaused,
-    currentPhase,
-    showMicroPhase,
     overallProgress,
-    isDelivering,
-    currentDeliveryStop,
-    sessionData,
-    initiateJourney,
-    startAnimation,
+    macroRoute,
+    macroCurrentStep,
+    macroTotalDistance,
+    microSimulationData,
+    microWarehouse,
+    microDeliveryAddresses,
+    microTotalDistance,
+    startJourney,
     pauseAnimation,
     resumeAnimation,
-    resetJourney
+    handleMicroComplete,
+    resetJourney,
   };
 }

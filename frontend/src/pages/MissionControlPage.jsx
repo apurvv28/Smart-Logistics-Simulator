@@ -6,13 +6,13 @@ import { CITY_DATA } from '../data/cityData';
 function InputField({ label, value, onChange, type = 'text', placeholder }) {
   return (
     <div>
-      <label className="block text-sm font-semibold text-amber-900 mb-1">{label}</label>
+      <label className="block text-sm font-semibold text-[#121212] mb-1">{label}</label>
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-amber-800/20 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+        className="w-full border border-[#dfdfd7] bg-[#faf8f3] px-3 py-2 text-sm text-[#121212]"
       />
     </div>
   );
@@ -448,8 +448,8 @@ export default function MissionControlPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         {/* Left Panel: Form & Buttons */}
         <section className="story-card p-5 xl:col-span-2 space-y-4">
-        <h2 className="text-2xl font-black text-amber-900">Mission Intake</h2>
-        <p className="text-sm text-amber-900/70">Create an order and command each mission stage.</p>
+        <h2 className="text-2xl font-black text-[#121212]">Mission Intake</h2>
+        <p className="text-sm text-[#5a5a5a]">Create an order and command each mission stage.</p>
 
         <InputField 
           label="Product URL" 
@@ -497,11 +497,11 @@ export default function MissionControlPage() {
             onChange={(v) => setOrderState({ ...orderState, deliveryPincode: v })} 
           />
           <div>
-            <label className="block text-sm font-semibold text-amber-900 mb-1">SLA Tier</label>
+            <label className="block text-sm font-semibold text-[#121212] mb-1">SLA Tier</label>
             <select 
               value={orderState.slaTier} 
               onChange={(e) => setOrderState({ ...orderState, slaTier: e.target.value })} 
-              className="w-full rounded-lg border border-amber-800/20 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+              className="w-full border border-[#dfdfd7] bg-[#faf8f3] px-3 py-2 text-sm text-[#121212]"
               style={{ color: '#000000' }}
             >
               <option value="STANDARD" style={{ color: '#000000' }}>STANDARD</option>
@@ -512,12 +512,12 @@ export default function MissionControlPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-amber-900 mb-1">Delivery Address</label>
+          <label className="block text-sm font-semibold text-[#121212] mb-1">Delivery Address</label>
           <textarea 
             rows={3} 
             value={orderState.deliveryAddress} 
             onChange={(e) => setOrderState({ ...orderState, deliveryAddress: e.target.value })} 
-            className="w-full rounded-lg border border-amber-800/20 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+            className="w-full border border-[#dfdfd7] bg-[#faf8f3] px-3 py-2 text-sm text-[#121212]"
             placeholder="Enter complete delivery address..."
           />
         </div>
@@ -546,31 +546,31 @@ export default function MissionControlPage() {
 
       {/* Right Panel: Mission Log & Results */}
       <section className="story-card p-5 space-y-4">
-        <h2 className="text-xl font-black text-amber-900">Mission Log</h2>
+        <h2 className="text-xl font-black text-[#121212]">Mission Log</h2>
         
         {selectedOrder ? (
-          <div className="space-y-2 text-sm text-amber-950">
-            <p><b>Order ID:</b> <code className="bg-amber-100 px-2 py-1 rounded">{selectedOrder.orderId || 'Pending'}</code></p>
+          <div className="space-y-2 text-sm text-[#121212]">
+            <p><b>Order ID:</b> <code className="bg-[#faf8f3] px-2 py-1 border border-[#dfdfd7]">{selectedOrder.orderId || 'Pending'}</code></p>
             <p><b>Product:</b> {selectedOrder.productName || orderState.productName}</p>
             <p><b>Customer:</b> {selectedOrder.customerName || orderState.customerName}</p>
             <p><b>Status:</b> {selectedOrder.status || 'CREATED'}</p>
             <p><b>Current Stage:</b> {orderState.currentStage}/6</p>
           </div>
         ) : (
-          <p className="text-sm text-amber-900/70">👈 Fill the form and click "1) Create Order" to begin</p>
+          <p className="text-sm text-[#5a5a5a]">👈 Fill the form and click "1) Create Order" to begin</p>
         )}
 
         {stageResults.title && (
-          <div className="border-t border-amber-200 pt-4 mt-4">
-            <h3 className="font-bold text-amber-900 mb-3">{stageResults.title}</h3>
-            <div className="space-y-2 text-xs text-amber-800 bg-amber-50 p-3 rounded-lg">
+          <div className="border-t border-[#dfdfd7] pt-4 mt-4">
+            <h3 className="font-bold text-[#121212] mb-3">{stageResults.title}</h3>
+            <div className="space-y-2 text-xs text-[#333] bg-[#faf8f3] p-3 border border-[#dfdfd7]">
               {Object.entries(stageResults.data || {}).map(([key, val]) => (
                 <div key={key}>
                   <strong>{key}:</strong> {String(val)}
                 </div>
               ))}
               {stageResults.timestamp && (
-                <div className="text-amber-600 pt-2 border-t border-amber-200">
+                <div className="text-[#9a7318] pt-2 border-t border-[#dfdfd7]">
                   ⏰ {stageResults.timestamp}
                 </div>
               )}
@@ -580,12 +580,12 @@ export default function MissionControlPage() {
 
         {/* Return Reason Dropdown */}
         {orderState.deliverySimulated && !orderState.returnInitiated && (
-          <div className="border-t border-amber-200 pt-4">
-            <label className="block text-sm font-semibold text-amber-900 mb-2">Return Reason</label>
+          <div className="border-t border-[#dfdfd7] pt-4">
+            <label className="block text-sm font-semibold text-[#121212] mb-2">Return Reason</label>
             <select 
               value={orderState.returnReason} 
               onChange={(e) => setOrderState({ ...orderState, returnReason: e.target.value })} 
-              className="w-full rounded-lg border border-amber-800/20 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+              className="w-full border border-[#dfdfd7] bg-[#faf8f3] px-3 py-2 text-sm text-[#121212]"
               style={{ color: '#000000' }}
             >
               <option value="Not as described" style={{ color: '#000000' }}>Not as described</option>

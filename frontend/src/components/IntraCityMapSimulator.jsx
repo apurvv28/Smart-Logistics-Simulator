@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import SportsBikeMarker from './SportsBikeMarker';
 
 const STOP_DWELL_TIME = 5000; 
+const CALCULATED_PATH_COLOR = '#d72638'; // Dijkstra + Overpass optimized path
+const COVERED_PATH_COLOR = '#2563eb'; // Path already covered by delivery partner
 
 // Component Icons
 function createStopMarker(isDelivered, isCurrent, index) {
@@ -41,8 +43,8 @@ const createRiderIcon = (bearing = 0, speed = 0, isMoving = false) => {
   return L.divIcon({
     className: '',
     html: html,
-    iconSize: [100, 60],
-    iconAnchor: [50, 30],
+    iconSize: [80, 50],
+    iconAnchor: [40, 25],
   });
 };
 
@@ -190,6 +192,9 @@ const IntraCityMapSimulator = ({
     if (currentSegmentIndex >= roadPath.length - 1) {
       setStatusMessage('✅ Mission complete. Agent returned to hub.');
       setIsSimulating(false);
+      if (onAnimationComplete) {
+        setTimeout(() => onAnimationComplete(), 1500);
+      }
       return;
     }
 
@@ -197,45 +202,42 @@ const IntraCityMapSimulator = ({
       if (lastUpdateRef.current === 0) lastUpdateRef.current = time;
       const deltaTime = time - lastUpdateRef.current;
 
-      // Update every ~20ms for faster, smooth motion
-      if (deltaTime > 20) {
+      // Update every ~110ms to keep movement calmer and smoother
+      if (deltaTime > 110) {
         lastUpdateRef.current = time;
         
-        // Increase step increment to 2 for higher speed
-        const nextIdx = Math.min(currentSegmentIndex + 2, roadPath.length - 1);
+        // Step increment of 1 for smoother, slower movement
+        const nextIdx = Math.min(currentSegmentIndex + 1, roadPath.length - 1);
         
-        // Robust stop detection: Check all indices in this step skip to ensure no stop is ever missed
-        let detectedStop = null;
-        let detectionIdx = nextIdx;
-
-        for (let i = currentSegmentIndex; i <= nextIdx; i++) {
-          const checkPos = roadPath[i];
-          const found = route.find((s, routeIdx) => {
-            const d = Math.sqrt(Math.pow(s.latitude - checkPos[0], 2) + Math.pow(s.longitude - checkPos[1], 2));
-            // 0.001 threshold (~110m) ensures we never miss a stop even if roads are slightly offset from marker
-            return d < 0.001 && !deliveredStops.has(s.id) && s.id !== warehouse.id;
-          });
-          if (found) {
-            detectedStop = found;
-            detectionIdx = i;
-            break;
-          }
-        }
+        // Stop detection at current position
+        const checkPos = roadPath[nextIdx];
+        const detectedStop = route.find((s) => {
+          const d = Math.sqrt(Math.pow(s.latitude - checkPos[0], 2) + Math.pow(s.longitude - checkPos[1], 2));
+          return d < 0.0015 && !deliveredStops.has(s.id) && s.id !== warehouse.id;
+        });
 
         if (detectedStop) {
-          const stopPos = roadPath[detectionIdx];
-          setVanPos(stopPos);
-          setCompletedPath(prev => [...prev, stopPos]);
-          setCurrentSegmentIndex(detectionIdx);
+          setVanPos(checkPos);
+          setCompletedPath(prev => [...prev, checkPos]);
+          setCurrentSegmentIndex(nextIdx);
           handleArrival(detectedStop);
           return;
         }
 
         const currentPos = roadPath[currentSegmentIndex];
         const nextPos = roadPath[nextIdx];
-        const bearing = calculateBearing(currentPos, nextPos);
+        const newBearing = calculateBearing(currentPos, nextPos);
         
-        setVanBearing(bearing);
+        // Smooth bearing transition to avoid jerky direction snaps
+        setVanBearing(prev => {
+          const diff = newBearing - prev;
+          const normalized = ((diff + 540) % 360) - 180; // normalize to [-180, 180]
+          // Ignore tiny heading changes to avoid constant icon jitter.
+          if (Math.abs(normalized) > 25) {
+            return prev + normalized * 0.2; // gentler bearing easing
+          }
+          return prev;
+        });
         setVanPos(nextPos);
         setCompletedPath(prev => [...prev, nextPos]);
         setCurrentSegmentIndex(nextIdx);
@@ -292,33 +294,33 @@ const IntraCityMapSimulator = ({
         >
           <AutoFitBounds coordinates={route ? route.map(s => [s.latitude || s.lat, s.longitude || s.lng]) : []} isSimulating={isSimulating} />
           <TileLayer 
-             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+             attribution='Tiles &copy; Esri'
           />
           
           {/* Road Path (OSRM) - Solid when simulating, subtle when preparing */}
           <Polyline 
             positions={roadPath} 
-            color="#6366f1" 
+            color={CALCULATED_PATH_COLOR}
             weight={4} 
-            opacity={isSimulating ? 0.3 : 0.1}
+            opacity={isSimulating ? 0.35 : 0.2}
           />
 
           {/* Preview Route (Dashed) - Only shows before/during simulation setup */}
           {!isSimulating && route && route.length > 1 && (
             <Polyline
               positions={route.map(s => [s.latitude, s.longitude])}
-              color="#6366f1"
+              color={CALCULATED_PATH_COLOR}
               weight={2}
               dashArray="10, 10"
-              opacity={0.5}
+              opacity={0.6}
             />
           )}
           
           {/* Completed Path */}
           <Polyline 
             positions={completedPath} 
-            color="#6366f1" 
+            color={COVERED_PATH_COLOR}
             weight={6} 
             opacity={0.9}
           />
@@ -355,7 +357,7 @@ const IntraCityMapSimulator = ({
           {/* Rider Marker */}
           {(() => {
             const isMoving = isSimulating && !isPaused && !isDwellTime && !externalIsPaused;
-            const speed = isMoving ? 30 : 0; // Simple approximation for animation
+            const speed = isMoving ? 18 : 0; // Lower speed for calmer animation
             return <Marker position={vanPos} icon={createRiderIcon(vanBearing, speed, isMoving)} zIndexOffset={1000} />;
           })()}
         </MapContainer>
@@ -458,16 +460,16 @@ const IntraCityMapSimulator = ({
       </div>
 
       {/* RIGHT: Control Sidebar */}
-      <div className="w-[280px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)]">
+      <div className="w-[280px] bg-white border-l border-[#dfdfd7] flex flex-col z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.05)]">
         <div className="p-5 border-b border-slate-100">
            <div className="flex flex-col gap-2 mb-6">
               <div className="flex items-center gap-2">
-                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                 <div className="w-8 h-8 bg-[#d72638] flex items-center justify-center text-white">
                     <Navigation className="w-4 h-4" />
                  </div>
-                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Mission Control</h2>
+                 <h2 className="text-xl font-black text-[#121212] tracking-tight">Mission Control</h2>
               </div>
-              <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-full border border-indigo-100 uppercase tracking-widest">
+              <span className="px-3 py-1 bg-[#fff7e3] text-[#9a7318] text-[10px] font-black border border-[#d9c289] uppercase tracking-widest">
                 City Scale: 15KM
               </span>
            </div>
@@ -492,10 +494,10 @@ const IntraCityMapSimulator = ({
                 }
               }}
               disabled={isLoadingPath || loading}
-              className={`w-full py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl disabled:opacity-50 ${
+             className={`w-full py-4 font-black flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl disabled:opacity-50 ${
                 isSimulating 
                   ? (isPaused ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                  : 'bg-[#d72638] hover:bg-[#b71f2f] text-white'
               }`}
            >
               {isLoadingPath || loading ? (loading ? 'Calculating Route...' : 'Analyzing Roads...') : (
@@ -509,7 +511,7 @@ const IntraCityMapSimulator = ({
            <div className="mt-4 text-center">
               <button 
                 onClick={resetSimulation}
-                className="text-xs font-bold text-slate-400 hover:text-indigo-600 flex items-center justify-center gap-1 mx-auto transition-colors"
+                className="text-xs font-bold text-slate-500 hover:text-[#d72638] flex items-center justify-center gap-1 mx-auto transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
                 Reset System
