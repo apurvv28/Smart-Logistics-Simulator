@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { simulationSocket } from '../data/socket';
+import { CITY_DATA } from '../data/cityData';
 
 const API_BASE = 'http://localhost:8081/api/v1';
 
@@ -17,6 +18,7 @@ const createInitialOrderState = () => ({
   deliveryAddress: '',
   slaTier: 'STANDARD',
   returnReason: 'Not as described',
+  sourceCityId: 'DEL', // Default source city
 
   // Order lifecycle
   orderId: null,
@@ -175,7 +177,8 @@ export function useCampaignState() {
           customerEmail: orderState.customerEmail.trim(),
           deliveryPincode: orderState.deliveryPincode.trim(),
           deliveryAddress: orderState.deliveryAddress.trim(),
-          slaTier: orderState.slaTier
+          slaTier: orderState.slaTier,
+          sourceCityId: orderState.sourceCityId
         });
         createdOrder = response.data;
         orderId = createdOrder.orderId || createdOrder.id;
@@ -193,30 +196,27 @@ export function useCampaignState() {
         currentStage: 1,
       }));
 
-      // Update selected order
-      if (createdOrder) {
-        setSelectedOrder(createdOrder);
-        setOrders(prev => upsertOrder(prev, createdOrder));
-      } else {
-        // Mock order object
-        const mockOrder = {
-          orderId,
-          status: 'CREATED',
-          productName: orderState.productName,
-          customerName: orderState.customerName,
-          deliveryAddress: orderState.deliveryAddress,
-          slaTier: orderState.slaTier,
-          createdAt: new Date().toISOString()
-        };
-        setSelectedOrder(mockOrder);
-        setOrders(prev => [mockOrder, ...prev]);
-      }
+      // Create order object with all necessary fields
+      const orderObject = createdOrder || {
+        orderId,
+        status: 'CREATED',
+        productName: orderState.productName,
+        customerName: orderState.customerName,
+        deliveryAddress: orderState.deliveryAddress,
+        slaTier: orderState.slaTier,
+        sourceCityId: orderState.sourceCityId,
+        createdAt: new Date().toISOString()
+      };
+
+      setSelectedOrder(orderObject);
+      setOrders(prev => [orderObject, ...prev]);
 
       setStatusMessage(`✅ Order ${orderId} created successfully!`);
       showStageResult('Order Created', {
         'Order ID': orderId,
         'Product': orderState.productName,
         'Customer': orderState.customerName,
+        'Source City': CITY_DATA[orderState.sourceCityId]?.name || 'Delhi',
         'Delivery To': orderState.deliveryAddress,
         'SLA': orderState.slaTier,
         'Status': 'CONFIRMED'
@@ -234,12 +234,27 @@ export function useCampaignState() {
   const handleProcessRoute = async () => {
     if (!orderState.orderId) {
       setStatusMessage('❌ Create an order first');
-      return;
+      return null;
     }
 
     setLoading(true);
     try {
       let routeData;
+      
+      // Get source and destination cities
+      const sourceCity = CITY_DATA[orderState.sourceCityId] || CITY_DATA.DEL;
+      const destAddress = orderState.deliveryAddress?.toLowerCase() || '';
+      const destinationCity = Object.values(CITY_DATA).find(c => 
+        destAddress.includes(c.name.toLowerCase()) || destAddress.includes(c.id.toLowerCase())
+      ) || CITY_DATA.PUN;
+
+      console.log('Processing route:', {
+        sourceCityId: orderState.sourceCityId,
+        sourceCity: sourceCity.name,
+        destinationCity: destinationCity.name,
+        sourceCoords: sourceCity.coordinates,
+        destCoords: destinationCity.coordinates
+      });
 
       // Try backend API
       try {
@@ -248,16 +263,52 @@ export function useCampaignState() {
           selectedOrder || { orderId: orderState.orderId }
         );
         routeData = response.data;
+        
+        // Ensure backend response has the required fields
+        if (!routeData.waypoints) {
+          routeData.waypoints = [sourceCity.name, destinationCity.name];
+        }
+        if (!routeData.plannedRoute) {
+          routeData.plannedRoute = [sourceCity.nodeId, destinationCity.nodeId];
+        }
       } catch (err) {
-        // Fallback: Mock inter-city route
+        // Fallback: Mock inter-city route with actual cities
         console.warn('Backend route calculation failed, using mock data', err.message);
+        
+        // Calculate distance using Haversine formula approximation
+        const sourceLat = sourceCity.coordinates.lat;
+        const sourceLng = sourceCity.coordinates.lng;
+        const destLat = destinationCity.coordinates.lat;
+        const destLng = destinationCity.coordinates.lng;
+        
+        // Haversine formula approximation (111 km per degree)
+        const latDiff = destLat - sourceLat;
+        const lngDiff = destLng - sourceLng;
+        const distance = Math.round(
+          Math.sqrt(
+            Math.pow(latDiff * 111, 2) + 
+            Math.pow(lngDiff * 111 * Math.cos((sourceLat * Math.PI) / 180), 2)
+          )
+        );
+        
+        console.log('Distance calculation:', {
+          sourceLat,
+          sourceLng,
+          destLat,
+          destLng,
+          latDiff,
+          lngDiff,
+          distance
+        });
+        
         routeData = {
           orderId: orderState.orderId,
-          source: 'Delhi Warehouse',
-          destination: orderState.deliveryAddress || 'Pune',
-          distanceKm: 1412,
-          estimatedHours: 18,
-          waypoints: ['Delhi', 'Agra', 'Gwalior', 'Bhopal', 'Nagpur', 'Pune'],
+          source: `${sourceCity.name} Warehouse`,
+          destination: destinationCity.name,
+          distanceKm: distance,
+          estimatedHours: Math.round(distance / 60), // Rough estimate at 60 km/h
+          waypoints: [sourceCity.name, destinationCity.name],
+          plannedRoute: [sourceCity.nodeId, destinationCity.nodeId], // For map visualization
           routeAlgorithm: 'Dijkstra',
           cost: (parseFloat(orderState.weight) * 45).toFixed(2),
         };
@@ -270,23 +321,47 @@ export function useCampaignState() {
         currentStage: 2
       }));
 
-      if (selectedOrder) {
-        setSelectedOrder(prev => ({ ...prev, ...routeData }));
-        setOrders(prev => upsertOrder(prev, { ...selectedOrder, ...routeData }));
-      }
+      // Update selectedOrder with route data - ensure all fields are present
+      const updatedOrder = { 
+        ...(selectedOrder || {}),
+        orderId: orderState.orderId,
+        productName: orderState.productName,
+        customerName: orderState.customerName,
+        deliveryAddress: orderState.deliveryAddress,
+        status: 'ROUTED',
+        // Route data
+        source: routeData.source,
+        destination: routeData.destination,
+        distanceKm: routeData.distanceKm,
+        estimatedHours: routeData.estimatedHours,
+        waypoints: routeData.waypoints,
+        plannedRoute: routeData.plannedRoute,
+        routeAlgorithm: routeData.routeAlgorithm,
+        cost: routeData.cost,
+        // Store route data object for backward compatibility
+        routeData: routeData
+      };
+      
+      console.log('Updated order with route:', updatedOrder);
+      
+      setSelectedOrder(updatedOrder);
+      setOrders(prev => upsertOrder(prev, updatedOrder));
 
       setStatusMessage('✅ Route calculated successfully!');
       showStageResult('Route Processed', {
-        'Route': routeData.waypoints?.join(' → ') || 'Via inter-city network',
-        'Distance': `${routeData.distanceKm || 1412} km`,
-        'ETA': `${routeData.estimatedHours || 18} hours`,
-        'Shipping Cost': `₹${routeData.cost || 45}`,
+        'Route': routeData.waypoints?.join(' → ') || `${sourceCity.name} → ${destinationCity.name}`,
+        'Distance': `${routeData.distanceKm} km`,
+        'ETA': `${routeData.estimatedHours} hours`,
+        'Shipping Cost': `₹${routeData.cost}`,
         'Algorithm': routeData.routeAlgorithm || 'Dijkstra',
       });
+
+      return routeData; // Return the route data for use in wrapper
 
     } catch (err) {
       console.error('Route processing error:', err);
       setStatusMessage(`❌ Route processing failed: ${err.message}`);
+      return null;
     } finally {
       setLoading(false);
     }

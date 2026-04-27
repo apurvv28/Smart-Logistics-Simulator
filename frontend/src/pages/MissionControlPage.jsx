@@ -304,32 +304,47 @@ export default function MissionControlPage() {
   };
 
   const wrappedHandleProcessRoute = async () => {
-    await actions.handleProcessRoute();
+    const routeData = await actions.handleProcessRoute();
     
-    // Auto-detect destination city from address to persist for Phase 4
+    if (!routeData) {
+      console.error('No route data returned from handleProcessRoute');
+      return;
+    }
+
+    // Auto-detect destination city from address to persist for Phase 3
     const dest = orderState.deliveryAddress?.toLowerCase() || '';
     const cityEntry = Object.values(CITY_DATA).find(c => 
       dest.includes(c.name.toLowerCase()) || dest.includes(c.id.toLowerCase())
     ) || CITY_DATA.PUN; // Default to Pune if not clear
 
-    // Add warehouse picked and dispatched events
+    // Get source city
+    const sourceCity = CITY_DATA[orderState.sourceCityId] || CITY_DATA.DEL;
+
+    console.log('Timeline event data:', {
+      sourceCity: sourceCity.name,
+      destCity: cityEntry.name,
+      distance: routeData.distanceKm,
+      routeData
+    });
+
+    // Add warehouse picked and dispatched events with actual distance
     setTimelineEvents(prev => [...prev,
       {
         stage: 'WAREHOUSE_PICKED',
         timestamp: new Date().toLocaleString('en-IN'),
-        description: `Order picked from warehouse: ${orderState.routeData?.source || 'Delhi Warehouse'}`
+        description: `Order picked from warehouse: ${sourceCity.name} Warehouse`
       },
       {
         stage: 'DISPATCHED',
         timestamp: new Date().toLocaleString('en-IN'),
-        description: `Route calculated using ${orderState.routeData?.routeAlgorithm || 'A_STAR'}. Distance: ${orderState.routeData?.distanceKm || 1412} km`
+        description: `Route calculated from ${sourceCity.name} to ${cityEntry.name} using ${routeData.routeAlgorithm || 'Dijkstra'}. Distance: ${routeData.distanceKm} km`
       }
     ]);
 
     // Save to localStorage for Phase 3 Bridge
     localStorage.setItem('logicore_phase1', JSON.stringify({
-      originCity: 'Delhi',
-      originNodeId: 0,
+      originCity: sourceCity.name,
+      originNodeId: sourceCity.nodeId,
       destinationCity: cityEntry.name,
       destinationNodeId: cityEntry.nodeId,
       deliveryAddress: orderState.deliveryAddress,
@@ -341,7 +356,7 @@ export default function MissionControlPage() {
       cityId: cityEntry.id,
       cityName: cityEntry.name,
       nodeId: cityEntry.nodeId,
-      algorithmUsed: orderState.routeData?.routeAlgorithm || 'Dijkstra'
+      algorithmUsed: routeData.routeAlgorithm || 'Dijkstra'
     });
   };
 
@@ -451,14 +466,129 @@ export default function MissionControlPage() {
         <h2 className="text-2xl font-black text-[#121212]">Mission Intake</h2>
         <p className="text-sm text-[#5a5a5a]">Create an order and command each mission stage.</p>
 
-        <InputField 
-          label="Product URL" 
-          value={orderState.productUrl} 
-          onChange={(v) => setOrderState({ ...orderState, productUrl: v })} 
-          placeholder="https://www.amazon.in/..." 
-        />
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-[#121212]">Product URL</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={orderState.productUrl}
+              placeholder="https://www.amazon.in/..."
+              onChange={(e) => setOrderState({ ...orderState, productUrl: e.target.value })}
+              className="flex-1 border border-[#dfdfd7] bg-[#faf8f3] px-3 py-2 text-sm text-[#121212]"
+            />
+            <button
+              onClick={async () => {
+                if (!orderState.productUrl) return;
+                
+                try {
+                  // Extract product name from URL
+                  const urlParts = orderState.productUrl.split('/');
+                  const productSlug = urlParts.find(part => part.length > 20 && part.includes('-'));
+                  const productName = productSlug 
+                    ? productSlug.split('-').slice(0, 5).join(' ').replace(/[^a-zA-Z0-9\s]/g, '').trim()
+                    : 'Product';
+                  
+                  // Generate SKU from ASIN
+                  const asinMatch = orderState.productUrl.match(/\/dp\/([A-Z0-9]{10})/);
+                  const sku = asinMatch ? `SKU-${asinMatch[1]}` : `SKU-${Date.now().toString(36).toUpperCase()}`;
+                  
+                  // Smart source city based on product category patterns
+                  let sourceCity = 'DEL'; // Default
+                  const url = orderState.productUrl.toLowerCase();
+                  const productLower = productName.toLowerCase();
+                  
+                  // Electronics/Tech → Bangalore (tech hub)
+                  if (url.includes('electronics') || url.includes('computer') || url.includes('laptop') || 
+                      productLower.includes('laptop') || productLower.includes('phone') || productLower.includes('electronics')) {
+                    sourceCity = 'BLR';
+                  }
+                  // Fashion/Clothing → Mumbai (fashion capital)
+                  else if (url.includes('fashion') || url.includes('clothing') || url.includes('apparel') ||
+                           productLower.includes('shirt') || productLower.includes('dress') || productLower.includes('fashion')) {
+                    sourceCity = 'MUM';
+                  }
+                  // Pharma/Healthcare → Hyderabad (pharma hub)
+                  else if (url.includes('health') || url.includes('pharma') || url.includes('medicine') ||
+                           productLower.includes('vitamin') || productLower.includes('supplement')) {
+                    sourceCity = 'HYD';
+                  }
+                  // Automotive → Chennai (auto hub)
+                  else if (url.includes('automotive') || url.includes('car') || url.includes('bike') ||
+                           productLower.includes('automotive') || productLower.includes('vehicle')) {
+                    sourceCity = 'CHE';
+                  }
+                  // Textiles → Ahmedabad
+                  else if (url.includes('textile') || url.includes('fabric') ||
+                           productLower.includes('textile') || productLower.includes('fabric')) {
+                    sourceCity = 'AHM';
+                  }
+                  // Food/Grocery → Pune (FMCG hub)
+                  else if (url.includes('grocery') || url.includes('food') || url.includes('gourmet') ||
+                           productLower.includes('food') || productLower.includes('snack')) {
+                    sourceCity = 'PUN';
+                  }
+                  
+                  setOrderState(prev => ({
+                    ...prev,
+                    productName: productName || prev.productName,
+                    productSku: sku,
+                    sourceCityId: sourceCity
+                  }));
+                  
+                  const cityNames = {
+                    'DEL': 'Delhi', 'MUM': 'Mumbai', 'BLR': 'Bangalore', 
+                    'HYD': 'Hyderabad', 'CHE': 'Chennai', 'PUN': 'Pune', 'AHM': 'Ahmedabad'
+                  };
+                  
+                  setToast({ 
+                    message: `✅ Extracted: ${productName.substring(0, 30)}... | Source: ${cityNames[sourceCity]} (category-based)`, 
+                    type: 'success', 
+                    visible: true 
+                  });
+                  setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 4000);
+                  
+                } catch (err) {
+                  setToast({ 
+                    message: '⚠️ Could not extract details. Please fill manually.', 
+                    type: 'error', 
+                    visible: true 
+                  });
+                  setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+                }
+              }}
+              className="px-4 py-2 bg-logi-gold text-logi-navy text-xs font-bold uppercase tracking-wider rounded hover:bg-logi-gold/80 transition-colors whitespace-nowrap"
+            >
+              Auto-Fill
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">
+            💡 Paste Amazon URL and click "Auto-Fill" to extract product details. Source city is guessed by category (you can change it).
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-semibold text-[#121212] mb-1">Source City</label>
+            <select 
+              value={orderState.sourceCityId} 
+              onChange={(e) => setOrderState({ ...orderState, sourceCityId: e.target.value })} 
+              className="w-full border border-[#dfdfd7] bg-[#faf8f3] px-3 py-2 text-sm text-[#121212]"
+              style={{ color: '#000000' }}
+            >
+              <option value="DEL" style={{ color: '#000000' }}>Delhi</option>
+              <option value="MUM" style={{ color: '#000000' }}>Mumbai</option>
+              <option value="BLR" style={{ color: '#000000' }}>Bangalore</option>
+              <option value="KOL" style={{ color: '#000000' }}>Kolkata</option>
+              <option value="CHE" style={{ color: '#000000' }}>Chennai</option>
+              <option value="HYD" style={{ color: '#000000' }}>Hyderabad</option>
+              <option value="PUN" style={{ color: '#000000' }}>Pune</option>
+              <option value="AHM" style={{ color: '#000000' }}>Ahmedabad</option>
+              <option value="JAI" style={{ color: '#000000' }}>Jaipur</option>
+              <option value="LKO" style={{ color: '#000000' }}>Lucknow</option>
+              <option value="BHO" style={{ color: '#000000' }}>Bhopal</option>
+              <option value="NAG" style={{ color: '#000000' }}>Nagpur</option>
+            </select>
+          </div>
           <InputField 
             label="Product SKU" 
             value={orderState.productSku} 

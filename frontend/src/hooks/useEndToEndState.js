@@ -206,6 +206,25 @@ export function useEndToEndState() {
     setMicroWarehouse(nearestWarehouse);
     setMicroDeliveryAddresses([customerStop]);
 
+    // Use fallback route directly since backend endpoint doesn't exist yet
+    const fallbackRoute = [skuCity.nodeId, customerCity.nodeId];
+    setMacroRoute(fallbackRoute);
+    setMacroTotalDistance(Math.round(Math.sqrt(
+      Math.pow(customerCity.lat - skuCity.lat, 2) + 
+      Math.pow(customerCity.lng - skuCity.lng, 2)
+    ) * 111)); // Rough km estimate
+    
+    setLoading(false);
+    setCurrentPhase('MACRO_TRANSIT');
+    setStatusMessage('Phase 1: inter-city simulation in progress...');
+
+    startMacroAnimation(fallbackRoute, async () => {
+      setCurrentPhase('MACRO_COMPLETE');
+      setStatusMessage('Phase 1 complete. Transitioning to Phase 2...');
+      await startMicroPhase(nearestWarehouse, customerStop);
+    });
+
+    /* Backend integration - uncomment when endpoint is ready
     try {
       const response = await axios.post(`${API_BASE}/end-to-end/initiate-journey`, {
         originCityId: skuCity.nodeId,
@@ -228,21 +247,11 @@ export function useEndToEndState() {
         await startMicroPhase(nearestWarehouse, customerStop);
       });
     } catch (journeyError) {
-      const fallbackRoute = [skuCity.nodeId, customerCity.nodeId];
-      setMacroRoute(fallbackRoute);
-      setMacroTotalDistance(0);
-      setCurrentPhase('MACRO_TRANSIT');
-      setStatusMessage('Phase 1 started (offline fallback).');
-
-      startMacroAnimation(fallbackRoute, async () => {
-        setCurrentPhase('MACRO_COMPLETE');
-        setStatusMessage('Phase 1 complete. Transitioning to Phase 2...');
-        await startMicroPhase(nearestWarehouse, customerStop);
-      });
       console.warn('Macro phase fallback used:', journeyError.message);
     } finally {
       setLoading(false);
     }
+    */
   };
 
   const pauseAnimation = () => {

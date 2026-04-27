@@ -30,6 +30,19 @@ export default function StoryMapSimulator({ networkData, selectedOrder }) {
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
 
+  // Debug: Log what we receive
+  useEffect(() => {
+    console.log('StoryMapSimulator received:', {
+      selectedOrder,
+      hasPlannedRoute: !!selectedOrder?.plannedRoute,
+      plannedRoute: selectedOrder?.plannedRoute,
+      hasWaypoints: !!selectedOrder?.waypoints,
+      waypoints: selectedOrder?.waypoints,
+      source: selectedOrder?.source,
+      destination: selectedOrder?.destination
+    });
+  }, [selectedOrder]);
+
   const findNodeFromText = (value, nameMap, allNodes) => {
     if (!value) return null;
     const key = String(value).toLowerCase();
@@ -91,30 +104,68 @@ export default function StoryMapSimulator({ networkData, selectedOrder }) {
   }, [selectedOrder, routeMode]);
 
   const routeCoordinates = useMemo(() => {
+    console.log('Building route coordinates:', {
+      activeRoute,
+      selectedOrder,
+      nodesById: Array.from(nodesById.keys()),
+      displayNodes: displayNodes.length
+    });
+
+    // Try 1: Use plannedRoute (node IDs)
     if (activeRoute.length > 0) {
-      return activeRoute
-        .map((id) => nodesById.get(String(id)))
+      const coords = activeRoute
+        .map((id) => {
+          const node = nodesById.get(String(id));
+          console.log(`Looking up node ID ${id}:`, node);
+          return node;
+        })
         .filter(Boolean)
         .map((n) => [n.lat, n.lng]);
+      
+      if (coords.length > 1) {
+        console.log('Route from plannedRoute:', coords);
+        return coords;
+      }
     }
 
+    // Try 2: Use waypoints (city names)
     const waypoints = selectedOrder?.waypoints || selectedOrder?.routeData?.waypoints;
     if (Array.isArray(waypoints) && waypoints.length > 1) {
-      return waypoints
-        .map((name) => findNodeFromText(name, nodesByName, displayNodes))
+      const coords = waypoints
+        .map((name) => {
+          const node = findNodeFromText(name, nodesByName, displayNodes);
+          console.log(`Looking up waypoint "${name}":`, node);
+          return node;
+        })
         .filter(Boolean)
         .map((n) => [n.lat, n.lng]);
+      
+      if (coords.length > 1) {
+        console.log('Route from waypoints:', coords);
+        return coords;
+      }
     }
 
+    // Try 3: Use source and destination text
     const sourceNode = findNodeFromText(selectedOrder?.source, nodesByName, displayNodes);
     const destinationNode = findNodeFromText(selectedOrder?.destination, nodesByName, displayNodes);
+    console.log('Source/Dest lookup:', { 
+      source: selectedOrder?.source, 
+      sourceNode,
+      destination: selectedOrder?.destination,
+      destinationNode 
+    });
+    
     if (sourceNode && destinationNode) {
-      return [
+      const coords = [
         [sourceNode.lat, sourceNode.lng],
         [destinationNode.lat, destinationNode.lng],
       ];
+      console.log('Route from source/dest:', coords);
+      return coords;
     }
 
+    console.warn('No route coordinates found');
     return [];
   }, [activeRoute, nodesById, selectedOrder, nodesByName, displayNodes]);
 

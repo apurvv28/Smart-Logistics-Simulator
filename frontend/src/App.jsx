@@ -11,6 +11,9 @@ function TopNav() {
   const location = useLocation();
   const isLandingPage = location.pathname === '/';
 
+  // Don't show nav on landing page (it has its own)
+  if (isLandingPage) return null;
+
   return (
     <nav className="flex items-center justify-between px-6 py-4 bg-white border border-[#dfdfd7] shadow-sm mb-6">
       <div className="flex items-center gap-3 text-[#121212] font-black text-xl tracking-tight">
@@ -19,14 +22,12 @@ function TopNav() {
         </div>
         Logicore Simulation Engine
       </div>
-      {!isLandingPage && (
-        <NavLink
-          to="/"
-          className="story-chip hover:story-chip-active flex items-center gap-2 px-4 py-2 transition-all font-bold text-sm"
-        >
-          <Home size={16} /> Simulations
-        </NavLink>
-      )}
+      <NavLink
+        to="/"
+        className="story-chip hover:story-chip-active flex items-center gap-2 px-4 py-2 transition-all font-bold text-sm"
+      >
+        <Home size={16} /> Simulations
+      </NavLink>
     </nav>
   );
 }

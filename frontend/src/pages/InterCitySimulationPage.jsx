@@ -1,36 +1,38 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Globe } from 'lucide-react';
 import MissionControlPage from './MissionControlPage';
-import MapAndChroniclePage from './MapAndChroniclePage';
 
-export default function InterCitySimulationPage({ campaign }) {
+export default function InterCitySimulationPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="space-y-6 bg-[#f7f7f5]">
-      {/* Header */}
-      <div className="flex items-center justify-between border border-[#dfdfd7] bg-white px-6 py-5">
-        <div className="space-y-2">
+    <div className="min-h-screen bg-logi-off-white">
+      {/* Header with Back Button */}
+      <div className="bg-white border-b border-logi-card-border sticky top-0 z-40">
+        <div className="mx-auto max-w-7xl px-6 py-5">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-[#d72638] hover:text-[#b71f2f] font-semibold text-sm mb-3"
+            className="flex items-center gap-2 text-logi-red hover:text-logi-red-deep font-semibold text-sm mb-4 transition-colors duration-200"
           >
             <ArrowLeft size={16} /> Back to Simulations
           </button>
-          <h1 className="text-4xl font-black text-[#121212]">Inter-City Network Simulation</h1>
-          <p className="text-[#4f4f4f]">Option 1: Watch packages traverse India using intelligent routing algorithms</p>
+          
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-logi-red rounded flex items-center justify-center">
+              <Globe size={24} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-logi-navy">Inter-City Network Simulation</h1>
+              <p className="text-gray-600 mt-1">Watch packages traverse India using intelligent routing algorithms</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Mission Control + Map View */}
-      <div className="space-y-6">
-        {/* Mission Control Section - now uses hooks internally */}
+      {/* Main Content */}
+      <div className="mx-auto max-w-7xl px-6 py-8">
+        {/* Mission Control Section */}
         <MissionControlPage />
-
-        {/* Map and Chronicle Section */}
-        <div className="border-t-2 border-[#dfdfd7] pt-6">
-          <MapAndChroniclePage campaign={campaign} />
-        </div>
       </div>
     </div>
   );
